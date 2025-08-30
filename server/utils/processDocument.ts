@@ -24,7 +24,7 @@ export async function processDocument(
         documents,
     };
 
-    console.log('Process payload:', payload);
+    // console.log('Process payload:', payload);
 
     try {
         const response = await axios.post(apiUrl, payload, {

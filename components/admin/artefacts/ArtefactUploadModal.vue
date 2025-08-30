@@ -2,17 +2,22 @@
   <UModal
     :model-value="isOpen"
     @update:model-value="canCloseModal ? $emit('update:isOpen', $event) : null"
-    :prevent-close="isAnyOperationInProgress"
     :ui="{ width: 'sm:max-w-4xl' }"
     :class="{ 'disabled-modal': disabledControl }"
+    :preventClose="true"
   >
     <div class="p-8" :class="{ 'upload-in-progress': isAnyOperationInProgress }">
       <div class="flex items-center justify-between mb-6 pb-4 border-b border-dark-600">
         <div>
-          <h3 class="text-xl font-semibold text-white">Please choose an upload method:</h3>
-          <div v-if="isAnyOperationInProgress" class="mt-2 flex items-center text-amber-400 text-sm">
+          <h3 class="text-xl font-semibold text-white">Please choose an upload methodddddd:</h3>
+          <div
+            v-if="isAnyOperationInProgress"
+            class="mt-2 flex items-center text-amber-400 text-sm"
+          >
             <UIcon name="heroicons:lock-closed" class="w-4 h-4 mr-1" />
-            <div class="animate-spin w-3 h-3 border border-amber-400 border-t-transparent rounded-full mr-2"></div>
+            <div
+              class="animate-spin w-3 h-3 border border-amber-400 border-t-transparent rounded-full mr-2"
+            ></div>
             <span>{{ currentOperationMessage }}</span>
           </div>
         </div>
@@ -30,7 +35,6 @@
       <!-- Upload Method Tabs -->
       <div class="mb-6" :class="{ 'pointer-events-none opacity-60': isAnyOperationInProgress }">
         <UTabs v-model="uploadType" :items="tabItems" :disabled="isAnyOperationInProgress">
-
           <template #file>
             <UForm :schema="schema" :state="state" @submit="onSubmit" class="space-y-6">
               <!-- File Category - First Position -->
@@ -89,9 +93,7 @@
                       </UButton>
                     </div>
                   </template>
-                  <template #empty>
-                    No categories found
-                  </template>
+                  <template #empty> No categories found </template>
                 </UInputMenu>
               </UFormGroup>
 
@@ -106,21 +108,21 @@
                   :class="{
                     'border-blue-500 bg-blue-500/10': isDragOver && !isAnyOperationInProgress,
                     'border-green-500 bg-green-500/10': state.file,
-                    'hover:border-dark-500': !isDragOver && !state.file && !isAnyOperationInProgress,
-                    'opacity-50 cursor-not-allowed': isAnyOperationInProgress
+                    'hover:border-dark-500':
+                      !isDragOver && !state.file && !isAnyOperationInProgress,
+                    'opacity-50 cursor-not-allowed': isAnyOperationInProgress,
                   }"
                 >
                   <div v-if="!state.file" class="py-4">
-                    <UIcon name="heroicons:cloud-arrow-up" class="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <UIcon
+                      name="heroicons:cloud-arrow-up"
+                      class="w-16 h-16 text-gray-400 mx-auto mb-4"
+                    />
                     <p class="text-lg text-gray-300 mb-2">
                       <span class="font-medium">Click to upload</span> or drag and drop
                     </p>
-                    <p class="text-sm text-gray-400 mb-4">
-                      PDF, Word, TXT, CSV, Markdown, Images
-                    </p>
-                    <p class="text-xs text-gray-500">
-                      Maximum file size: 20MB
-                    </p>
+                    <p class="text-sm text-gray-400 mb-4">PDF, Word, TXT, CSV, Markdown, Images</p>
+                    <p class="text-xs text-gray-500">Maximum file size: 20MB</p>
                     <input
                       ref="fileInput"
                       type="file"
@@ -134,8 +136,12 @@
                     <div class="flex items-center space-x-4">
                       <UIcon name="heroicons:document" class="w-10 h-10 text-green-400" />
                       <div class="text-left">
-                        <p class="text-white font-medium truncate max-w-md">{{ state.file.name }}</p>
-                        <p class="text-sm text-gray-400">{{ formatFileSize(state.file.size) }} • {{ getFileType(state.file.name) }}</p>
+                        <p class="text-white font-medium truncate max-w-md">
+                          {{ state.file.name }}
+                        </p>
+                        <p class="text-sm text-gray-400">
+                          {{ formatFileSize(state.file.size) }} • {{ getFileType(state.file.name) }}
+                        </p>
                       </div>
                     </div>
                     <UButton
@@ -249,9 +255,7 @@
                       </UButton>
                     </div>
                   </template>
-                  <template #empty>
-                    No categories found
-                  </template>
+                  <template #empty> No categories found </template>
                 </UInputMenu>
               </UFormGroup>
 
@@ -300,9 +304,11 @@
                   icon="i-logos-google-drive"
                 >
                   {{
-                    isGoogleSignInLoading ? 'Connecting to Google...' :
-                    isGoogleOAuthInProgress ? 'Processing selection...' :
-                    'Sign in with Google Drive'
+                    isGoogleSignInLoading
+                      ? 'Connecting to Google...'
+                      : isGoogleOAuthInProgress
+                        ? 'Processing selection...'
+                        : 'Sign in with Google Drive'
                   }}
                 </UButton>
               </UFormGroup>
@@ -313,8 +319,13 @@
                   <UIcon name="heroicons:information-circle" class="w-5 h-5 text-blue-400 mt-0.5" />
                   <div class="text-sm text-blue-300">
                     <p class="font-medium mb-1">Note:</p>
-                    <p>By signing in, you allow us to access your Google Drive and download selected files to our server. Your files are not stored or shared beyond this process.</p>
-                    <p class="mt-2">Supported file types: CSV, MS Word, PDF, Markdown, and Text files</p>
+                    <p>
+                      By signing in, you allow us to access your Google Drive and download selected
+                      files to our server. Your files are not stored or shared beyond this process.
+                    </p>
+                    <p class="mt-2">
+                      Supported file types: CSV, MS Word, PDF, Markdown, and Text files
+                    </p>
                   </div>
                 </div>
               </div>
@@ -330,7 +341,8 @@
                         (fetching...)
                       </span>
                       <span v-else-if="googleDriveFiles.length > 0" class="text-gray-500">
-                        ({{ selectedGoogleDriveFiles.length }}/{{ googleDriveFiles.length }} selected)
+                        ({{ selectedGoogleDriveFiles.length }}/{{ googleDriveFiles.length }}
+                        selected)
                       </span>
                       <span v-else-if="isUploadingFromGoogleDrive" class="text-blue-400">
                         (uploading selected files...)
@@ -342,7 +354,10 @@
                         variant="ghost"
                         size="xs"
                         color="gray"
-                        :disabled="selectedGoogleDriveFiles.length === googleDriveFiles.length || isAnyOperationInProgress"
+                        :disabled="
+                          selectedGoogleDriveFiles.length === googleDriveFiles.length ||
+                          isAnyOperationInProgress
+                        "
                       >
                         Select All
                       </UButton>
@@ -351,7 +366,9 @@
                         variant="ghost"
                         size="xs"
                         color="gray"
-                        :disabled="selectedGoogleDriveFiles.length === 0 || isAnyOperationInProgress"
+                        :disabled="
+                          selectedGoogleDriveFiles.length === 0 || isAnyOperationInProgress
+                        "
                       >
                         Clear All
                       </UButton>
@@ -359,18 +376,25 @@
                   </div>
                 </div>
 
-                <div class="bg-dark-800 min-h-[200px]" :class="{ 'pointer-events-none opacity-60': isAnyOperationInProgress }">
+                <div
+                  class="bg-dark-800 min-h-[200px]"
+                  :class="{ 'pointer-events-none opacity-60': isAnyOperationInProgress }"
+                >
                   <div v-if="googleDriveFiles.length === 0" class="text-center py-16">
                     <UIcon
                       :name="isFetchingFiles ? 'heroicons:arrow-path' : 'heroicons:folder-open'"
                       :class="[
                         'w-12 h-12 mx-auto mb-3',
-                        isFetchingFiles ? 'text-blue-400 animate-spin' : 'text-gray-500'
+                        isFetchingFiles ? 'text-blue-400 animate-spin' : 'text-gray-500',
                       ]"
                     />
-                    <p v-if="isFetchingFiles" class="text-blue-400 text-sm">Fetching files from Google Drive...</p>
+                    <p v-if="isFetchingFiles" class="text-blue-400 text-sm">
+                      Fetching files from Google Drive...
+                    </p>
                     <p v-else class="text-gray-400 text-sm">No files available for selection.</p>
-                    <p v-if="!isFetchingFiles" class="text-gray-500 text-xs mt-1">Enter a Google Drive URL and click "Fetch Files" to see available files.</p>
+                    <p v-if="!isFetchingFiles" class="text-gray-500 text-xs mt-1">
+                      Enter a Google Drive URL and click "Fetch Files" to see available files.
+                    </p>
                   </div>
 
                   <UTable
@@ -410,11 +434,15 @@
                     <!-- File name column with icon -->
                     <template #name-data="{ row }">
                       <div class="flex items-center">
-                        <div class="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center mr-3">
+                        <div
+                          class="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center mr-3"
+                        >
                           <UIcon :name="getFileIcon(row.type)" class="w-4 h-4 text-blue-400" />
                         </div>
                         <div>
-                          <div class="text-sm font-medium text-white truncate max-w-xs">{{ row.name }}</div>
+                          <div class="text-sm font-medium text-white truncate max-w-xs">
+                            {{ row.name }}
+                          </div>
                           <div v-if="row.modifiedTime" class="text-xs text-gray-500">
                             Modified: {{ formatDate(row.modifiedTime) }}
                           </div>
@@ -424,7 +452,9 @@
 
                     <!-- File type with badge -->
                     <template #type-data="{ row }">
-                      <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-gray-500/20 text-gray-400">
+                      <span
+                        class="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-gray-500/20 text-gray-400"
+                      >
                         {{ row.type }}
                       </span>
                     </template>
@@ -458,7 +488,11 @@
                   class="min-w-[120px]"
                   icon="heroicons:cloud-arrow-up"
                 >
-                  {{ isUploadingFromGoogleDrive ? 'Uploading...' : `Upload Selected (${selectedGoogleDriveFiles.length})` }}
+                  {{
+                    isUploadingFromGoogleDrive
+                      ? 'Uploading...'
+                      : `Upload Selected (${selectedGoogleDriveFiles.length})`
+                  }}
                 </UButton>
               </div>
             </div>
@@ -475,7 +509,10 @@ import type { FormSubmitEvent } from '#ui/types'
 import { nextTick, onMounted, onUnmounted, withDefaults } from 'vue'
 import { useArtefactsStore } from '~/stores/artefacts'
 import { useNotification } from '~/composables/useNotification'
-import { useGoogleDrive, type GoogleDriveFile as GoogleOAuthFile } from '~/composables/useGoogleDrive'
+import {
+  useGoogleDrive,
+  type GoogleDriveFile as GoogleOAuthFile,
+} from '~/composables/useGoogleDrive'
 
 interface GoogleDriveFile {
   id: string
@@ -495,7 +532,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  categoriesLoading: false
+  categoriesLoading: false,
 })
 
 // Initialize artefacts store
@@ -534,14 +571,14 @@ const tabItems = [
     value: 0,
     slot: 'file',
     label: 'File Upload',
-    icon: 'i-heroicons-document'
+    icon: 'i-heroicons-document',
   },
   {
     value: 1,
     slot: 'google',
     label: 'Google Drive',
-    icon: 'i-logos-google-drive'
-  }
+    icon: 'i-logos-google-drive',
+  },
 ]
 
 // Google Drive state
@@ -596,12 +633,13 @@ const isFetchingFiles = computed(() => artefactsStore.isLoadingGoogleDrive)
 const isGoogleSignInLoading = computed(() => googleDrive.isLoading.value)
 
 // Master loading state - true when ANY operation is in progress
-const isAnyOperationInProgress = computed(() =>
-  isUploading.value ||
-  isUploadingFromGoogleDrive.value ||
-  isFetchingFiles.value ||
-  isGoogleSignInLoading.value ||
-  isGoogleOAuthInProgress.value
+const isAnyOperationInProgress = computed(
+  () =>
+    isUploading.value ||
+    isUploadingFromGoogleDrive.value ||
+    isFetchingFiles.value ||
+    isGoogleSignInLoading.value ||
+    isGoogleOAuthInProgress.value,
 )
 
 // Modal and form control states
@@ -633,10 +671,10 @@ const categoryOptions = computed(() => {
   if (props.categoriesLoading) {
     return [{ label: 'Loading categories...', value: '', deletable: false }]
   }
-  return props.availableCategories.map(category => ({
+  return props.availableCategories.map((category) => ({
     label: category,
     value: category,
-    deletable: true
+    deletable: true,
   }))
 })
 
@@ -691,9 +729,21 @@ const setFile = (file: File) => {
     }
 
     // Validate file type
-    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain', 'text/csv', 'text/markdown', 'image/png', 'image/jpeg', 'image/jpg']
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'text/plain',
+      'text/csv',
+      'text/markdown',
+      'image/png',
+      'image/jpeg',
+      'image/jpg',
+    ]
     if (!allowedTypes.includes(file.type) && !file.name.endsWith('.md')) {
-      showError('Unsupported file type. Please upload PDF, Word, TXT, CSV, Markdown, or Image files.')
+      showError(
+        'Unsupported file type. Please upload PDF, Word, TXT, CSV, Markdown, or Image files.',
+      )
       return
     }
 
@@ -747,24 +797,22 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
   try {
     isUploading.value = true
 
-    // Simulate upload process
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    // Create FormData for the upload
+    const formData = new FormData()
+    formData.append('file', event.data.file)
+    formData.append('category', event.data.category)
+    formData.append('description', event.data.description || '')
 
-    // Create new artefact object
-    const newArtefact = {
-      id: Date.now(),
-      name: event.data.file.name,
-      description: event.data.description || 'No description provided',
-      category: event.data.category,
-      type: getFileType(event.data.file.name),
-      size: formatFileSize(event.data.file.size),
-      status: 'processing' as const,
-      uploadedBy: 'Current User',
-      lastUpdated: new Date().toLocaleString(),
-      artefact: event.data.file.name,
+    // Call the store upload method
+    const result = await artefactsStore.uploadArtefact(formData)
+
+    if (!result.success) {
+      showError(result.message || 'Upload failed. Please try again.')
+      return
     }
 
-    emit('fileUploaded', newArtefact)
+    // Emit the uploaded artefact data
+    emit('fileUploaded', result.data)
 
     // Reset form
     state.file = null
@@ -776,9 +824,8 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
       fileInput.value.value = ''
     }
 
-    showSuccess(`File "${newArtefact.name}" uploaded successfully!`)
+    showSuccess(result.message || 'File uploaded successfully!')
     emit('close')
-
   } catch (error) {
     console.error('Upload failed:', error)
     showError('Upload failed. Please try again.')
@@ -819,7 +866,9 @@ const fetchGoogleDriveFiles = async () => {
       showWarning('No supported files found in the Google Drive folder')
       selectedGoogleDriveFiles.value = []
     } else {
-      showSuccess(`Found ${result.files.length} supported file${result.files.length > 1 ? 's' : ''} available for selection`)
+      showSuccess(
+        `Found ${result.files.length} supported file${result.files.length > 1 ? 's' : ''} available for selection`,
+      )
     }
   } catch (error) {
     console.error('Failed to fetch files:', error)
@@ -845,7 +894,7 @@ const uploadFromGoogleDrive = async () => {
     // Call the store method to upload files
     const result = await artefactsStore.uploadGoogleDriveFiles(
       selectedGoogleDriveFiles.value,
-      googleDriveState.category
+      googleDriveState.category,
     )
 
     if (!result.success) {
@@ -854,7 +903,7 @@ const uploadFromGoogleDrive = async () => {
     }
 
     // Create artefact objects from uploaded files
-    const newArtefacts = result.files.map(file => ({
+    const newArtefacts = result.files.map((file) => ({
       id: Date.now() + Math.random(),
       name: file.name,
       description: 'Uploaded from Google Drive',
@@ -877,7 +926,6 @@ const uploadFromGoogleDrive = async () => {
 
     showSuccess(result.message || 'Files uploaded successfully!')
     emit('close')
-
   } catch (error) {
     console.error('Upload from Google Drive failed:', error)
     showError('Upload failed. Please try again.')
@@ -914,7 +962,7 @@ const handleGoogleOAuthSignIn = async () => {
 
         if (existingFileNames.length > 0) {
           showWarning(
-            `The following files already exist: ${existingFileNames.join(', ')}. They will be replaced.`
+            `The following files already exist: ${existingFileNames.join(', ')}. They will be replaced.`,
           )
         }
 
@@ -928,18 +976,18 @@ const handleGoogleOAuthSignIn = async () => {
           webViewLink: file.webViewLink,
           thumbnailLink: file.thumbnailLink,
           modifiedTime: file.modifiedTime,
-          googleAccessToken: file.googleAccessToken
+          googleAccessToken: file.googleAccessToken,
         }))
 
         // Upload the files
         const result = await artefactsStore.uploadGoogleDriveFiles(
           convertedFiles,
-          googleDriveState.category
+          googleDriveState.category,
         )
 
         if (result.success) {
           // Create artefact objects from uploaded files
-          const newArtefacts = result.files.map(file => ({
+          const newArtefacts = result.files.map((file) => ({
             id: Date.now() + Math.random(),
             name: file.name,
             description: 'Uploaded from Google Drive (OAuth)',
@@ -961,7 +1009,9 @@ const handleGoogleOAuthSignIn = async () => {
           artefactsStore.clearGoogleDriveFiles()
           googleDrive.cleanup()
 
-          showSuccess(`Successfully uploaded ${result.files.length} file${result.files.length > 1 ? 's' : ''} from Google Drive`)
+          showSuccess(
+            `Successfully uploaded ${result.files.length} file${result.files.length > 1 ? 's' : ''} from Google Drive`,
+          )
           emit('close')
         } else {
           showError(result.message || 'Upload failed')
@@ -976,7 +1026,6 @@ const handleGoogleOAuthSignIn = async () => {
 
     // Start OAuth flow with custom callback
     await googleDrive.signInWithGoogle(handleSelectedFiles)
-
   } catch (error) {
     console.error('Google OAuth sign-in failed:', error)
     showError('Failed to connect to Google Drive. Please try again.')
@@ -1009,12 +1058,12 @@ const clearGoogleDriveSelection = () => {
 // Helper methods
 const getFileIcon = (fileType: string) => {
   const iconMap: Record<string, string> = {
-    'PDF': 'heroicons:document-text',
-    'Word': 'heroicons:document',
-    'CSV': 'heroicons:table-cells',
-    'TXT': 'heroicons:document-text',
-    'Markdown': 'heroicons:document-text',
-    'Image': 'heroicons:photo',
+    PDF: 'heroicons:document-text',
+    Word: 'heroicons:document',
+    CSV: 'heroicons:table-cells',
+    TXT: 'heroicons:document-text',
+    Markdown: 'heroicons:document-text',
+    Image: 'heroicons:photo',
   }
   return iconMap[fileType] || 'heroicons:document'
 }
@@ -1025,7 +1074,7 @@ const formatDate = (dateString: string) => {
     return date.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
-      year: 'numeric'
+      year: 'numeric',
     })
   } catch {
     return 'Unknown'
@@ -1103,25 +1152,28 @@ const resetAllFields = () => {
 }
 
 // Watch for modal state changes
-watch(() => props.isOpen, (newVal, oldVal) => {
-  try {
-    if (newVal) {
-      // Modal opened - reset to initial state
-      uploadType.value = 0
-      resetAllFields()
-    } else if (oldVal === true && newVal === false) {
-      // Modal closed - perform comprehensive cleanup first, then reset fields
-      performComprehensiveCleanup()
-      nextTick(() => {
+watch(
+  () => props.isOpen,
+  (newVal, oldVal) => {
+    try {
+      if (newVal) {
+        // Modal opened - reset to initial state
+        uploadType.value = 0
         resetAllFields()
-      })
+      } else if (oldVal === true && newVal === false) {
+        // Modal closed - perform comprehensive cleanup first, then reset fields
+        performComprehensiveCleanup()
+        nextTick(() => {
+          resetAllFields()
+        })
+      }
+    } catch (error) {
+      console.error('Error in modal state watcher:', error)
+      // Fallback cleanup on error
+      performComprehensiveCleanup()
     }
-  } catch (error) {
-    console.error('Error in modal state watcher:', error)
-    // Fallback cleanup on error
-    performComprehensiveCleanup()
-  }
-})
+  },
+)
 
 // Watch for tab changes to reset form values
 watch(uploadType, () => {

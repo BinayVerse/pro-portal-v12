@@ -44,6 +44,11 @@ export default defineNuxtConfig({
     listen: () => validateEnvs(),
   },
 
+  // Development server configuration
+  devServer: {
+    port: 3000
+  },
+
   // Modules
   modules: ['@nuxt/ui', '@nuxt/icon', '@pinia/nuxt', '@nuxtjs/tailwindcss'],
 

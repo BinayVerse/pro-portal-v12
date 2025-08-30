@@ -18,9 +18,11 @@
           :model-value="selectedCategory"
           @update:model-value="$emit('update:selectedCategory', $event)"
           :options="[
-            { label: 'All Categories', value: '' },
+            { label: categoriesLoading ? 'Loading categories...' : 'All Categories', value: '' },
             ...availableCategories.map(cat => ({ label: cat, value: cat }))
           ]"
+          :loading="categoriesLoading"
+          :disabled="categoriesLoading"
           size="lg"
         />
       </div>
@@ -63,15 +65,19 @@
 </template>
 
 <script setup lang="ts">
+import { withDefaults } from 'vue'
 interface Props {
   searchQuery: string
   selectedCategory: string
   selectedType: string
   selectedStatus: string
   availableCategories: string[]
+  categoriesLoading?: boolean
 }
 
-defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  categoriesLoading: false
+})
 
 defineEmits<{
   'update:searchQuery': [value: string]

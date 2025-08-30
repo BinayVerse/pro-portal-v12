@@ -1,31 +1,35 @@
 <template>
   <UModal
     :model-value="isOpen"
-    @update:model-value="$emit('update:isOpen', $event)"
-    prevent-close
+    @update:model-value="canCloseModal ? $emit('update:isOpen', $event) : null"
+    :prevent-close="isAnyOperationInProgress"
     :ui="{ width: 'sm:max-w-4xl' }"
-    :disabled="disabledControl"
     :class="{ 'disabled-modal': disabledControl }"
   >
-    <div class="p-8">
+    <div class="p-8" :class="{ 'upload-in-progress': isAnyOperationInProgress }">
       <div class="flex items-center justify-between mb-6 pb-4 border-b border-dark-600">
         <div>
           <h3 class="text-xl font-semibold text-white">Please choose an upload method:</h3>
+          <div v-if="isAnyOperationInProgress" class="mt-2 flex items-center text-amber-400 text-sm">
+            <UIcon name="heroicons:lock-closed" class="w-4 h-4 mr-1" />
+            <div class="animate-spin w-3 h-3 border border-amber-400 border-t-transparent rounded-full mr-2"></div>
+            <span>{{ currentOperationMessage }}</span>
+          </div>
         </div>
         <UButton
-          @click="$emit('close')"
+          @click="canCloseModal ? $emit('close') : null"
           variant="ghost"
           icon="heroicons:x-mark"
           color="gray"
           size="md"
-          :disabled="isUploading"
+          :disabled="isAnyOperationInProgress"
           class="hover:bg-dark-700"
         />
       </div>
 
       <!-- Upload Method Tabs -->
-      <div class="mb-6">
-        <UTabs v-model="uploadType" :items="tabItems">
+      <div class="mb-6" :class="{ 'pointer-events-none opacity-60': isAnyOperationInProgress }">
+        <UTabs v-model="uploadType" :items="tabItems" :disabled="isAnyOperationInProgress">
 
           <template #file>
             <UForm :schema="schema" :state="state" @submit="onSubmit" class="space-y-6">
@@ -35,9 +39,9 @@
                   v-model="state.category"
                   :options="categoryOptions"
                   placeholder="Select a Category or Add a new one"
-                  :loading="isUploading"
+                  :loading="isAnyOperationInProgress || categoriesLoading"
                   searchable
-                  :disabled="isUploading"
+                  :disabled="isAnyOperationInProgress || categoriesLoading"
                   value-attribute="label"
                   :uiMenu="{
                     option: {
@@ -56,15 +60,15 @@
                         @mousedown.stop.prevent
                       >
                         <UButton
-                          v-if="state.category !== category.label"
+                          v-if="state.category !== category.label && !categoriesLoading"
                           @click="deleteCategory(category.value)"
                           :ui="{ rounded: 'rounded-full' }"
                           icon="i-heroicons:trash"
                           variant="outline"
                           color="red"
                           size="xs"
-                          :loading="isUploading"
-                          :disabled="isUploading"
+                          :loading="isAnyOperationInProgress || categoriesLoading"
+                          :disabled="isAnyOperationInProgress || categoriesLoading"
                         />
                       </div>
                     </div>
@@ -78,10 +82,10 @@
                         @click="addCategory(query)"
                         color="primary"
                         size="xs"
-                        :loading="isUploading"
-                        :disabled="isUploading"
+                        :loading="isAnyOperationInProgress || categoriesLoading"
+                        :disabled="isAnyOperationInProgress || categoriesLoading"
                       >
-                        Add
+                        {{ categoriesLoading ? 'Loading...' : 'Add' }}
                       </UButton>
                     </div>
                   </template>
@@ -94,15 +98,16 @@
               <!-- Drag and Drop File Upload -->
               <UFormGroup label="File" name="file" required>
                 <div
-                  @drop.prevent="handleDrop"
-                  @dragover.prevent="handleDragOver"
-                  @dragenter.prevent="handleDragEnter"
-                  @dragleave.prevent="handleDragLeave"
+                  @drop.prevent="!isAnyOperationInProgress && handleDrop($event)"
+                  @dragover.prevent="!isAnyOperationInProgress && handleDragOver($event)"
+                  @dragenter.prevent="!isAnyOperationInProgress && handleDragEnter($event)"
+                  @dragleave.prevent="!isAnyOperationInProgress && handleDragLeave($event)"
                   class="border-2 border-dashed border-dark-600 rounded-lg p-8 text-center transition-colors relative"
                   :class="{
-                    'border-blue-500 bg-blue-500/10': isDragOver,
+                    'border-blue-500 bg-blue-500/10': isDragOver && !isAnyOperationInProgress,
                     'border-green-500 bg-green-500/10': state.file,
-                    'hover:border-dark-500': !isDragOver && !state.file
+                    'hover:border-dark-500': !isDragOver && !state.file && !isAnyOperationInProgress,
+                    'opacity-50 cursor-not-allowed': isAnyOperationInProgress
                   }"
                 >
                   <div v-if="!state.file" class="py-4">
@@ -122,6 +127,7 @@
                       class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                       accept=".pdf,.doc,.docx,.txt,.csv,.md,.png,.jpg,.jpeg"
                       @change="handleFileSelect"
+                      :disabled="isAnyOperationInProgress"
                     />
                   </div>
                   <div v-else class="flex items-center justify-between py-4">
@@ -138,6 +144,7 @@
                       icon="heroicons:x-mark"
                       color="red"
                       size="md"
+                      :disabled="isAnyOperationInProgress"
                     />
                   </div>
                 </div>
@@ -151,6 +158,7 @@
                   :maxlength="100"
                   :rows="3"
                   size="lg"
+                  :disabled="isAnyOperationInProgress"
                 />
                 <p class="text-xs text-gray-400 mt-1">
                   {{ state.description?.length || 0 }}/100 characters
@@ -159,8 +167,8 @@
 
               <div class="flex justify-end space-x-3 pt-6 border-t border-dark-600 mt-6">
                 <UButton
-                  @click="$emit('close')"
-                  :disabled="isUploading"
+                  @click="canCloseModal ? $emit('close') : null"
+                  :disabled="isAnyOperationInProgress"
                   variant="outline"
                   color="gray"
                   size="lg"
@@ -171,7 +179,7 @@
                 <UButton
                   type="submit"
                   :loading="isUploading"
-                  :disabled="isUploading"
+                  :disabled="isAnyOperationInProgress"
                   color="primary"
                   size="lg"
                   class="min-w-[120px]"
@@ -191,9 +199,9 @@
                   v-model="googleDriveState.category"
                   :options="categoryOptions"
                   placeholder="Select a Category or Add a new one"
-                  :loading="isUploadingFromGoogleDrive"
+                  :loading="isAnyOperationInProgress || categoriesLoading"
                   searchable
-                  :disabled="isUploadingFromGoogleDrive"
+                  :disabled="isAnyOperationInProgress || categoriesLoading"
                   value-attribute="label"
                   :uiMenu="{
                     option: {
@@ -212,15 +220,15 @@
                         @mousedown.stop.prevent
                       >
                         <UButton
-                          v-if="googleDriveState.category !== category.label"
+                          v-if="googleDriveState.category !== category.label && !categoriesLoading"
                           @click="deleteCategory(category.value)"
                           :ui="{ rounded: 'rounded-full' }"
                           icon="i-heroicons:trash"
                           variant="outline"
                           color="red"
                           size="xs"
-                          :loading="isUploadingFromGoogleDrive"
-                          :disabled="isUploadingFromGoogleDrive"
+                          :loading="isAnyOperationInProgress || categoriesLoading"
+                          :disabled="isAnyOperationInProgress || categoriesLoading"
                         />
                       </div>
                     </div>
@@ -234,10 +242,10 @@
                         @click="addCategory(query)"
                         color="primary"
                         size="xs"
-                        :loading="isUploadingFromGoogleDrive"
-                        :disabled="isUploadingFromGoogleDrive"
+                        :loading="isAnyOperationInProgress || categoriesLoading"
+                        :disabled="isAnyOperationInProgress || categoriesLoading"
                       >
-                        Add
+                        {{ categoriesLoading ? 'Loading...' : 'Add' }}
                       </UButton>
                     </div>
                   </template>
@@ -255,15 +263,17 @@
                     type="url"
                     placeholder="Google drive URL eg: https://drive.google.com/drive/folders/1UMPf5gDy_mCW4v"
                     class="flex-1 px-3 py-3 border border-dark-700 rounded-lg bg-dark-900 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    :disabled="isAnyOperationInProgress"
                   />
                   <UButton
                     @click="fetchGoogleDriveFiles"
                     :loading="isFetchingFiles"
+                    :disabled="isAnyOperationInProgress"
                     color="primary"
                     size="lg"
                     class="min-w-[100px]"
                   >
-                    Fetch Files
+                    {{ isFetchingFiles ? 'Fetching...' : 'Fetch Files' }}
                   </UButton>
                 </div>
               </UFormGroup>
@@ -282,14 +292,18 @@
               <UFormGroup label="Option 2: Google OAuth Integration">
                 <UButton
                   @click="handleGoogleOAuthSignIn"
-                  :loading="googleDrive.isLoading.value"
-                  :disabled="isUploadingFromGoogleDrive"
+                  :loading="isGoogleSignInLoading || isGoogleOAuthInProgress"
+                  :disabled="isAnyOperationInProgress"
                   color="gray"
                   size="lg"
                   class="w-full"
                   icon="i-logos-google-drive"
                 >
-                  {{ googleDrive.isLoading.value ? 'Connecting...' : 'Sign in with Google Drive' }}
+                  {{
+                    isGoogleSignInLoading ? 'Connecting to Google...' :
+                    isGoogleOAuthInProgress ? 'Processing selection...' :
+                    'Sign in with Google Drive'
+                  }}
                 </UButton>
               </UFormGroup>
 
@@ -312,8 +326,14 @@
                   <div class="flex items-center justify-between">
                     <h3 class="text-sm font-medium text-gray-300">
                       Files from Google Drive
-                      <span v-if="googleDriveFiles.length > 0" class="text-gray-500">
+                      <span v-if="isFetchingFiles" class="text-amber-400 animate-pulse">
+                        (fetching...)
+                      </span>
+                      <span v-else-if="googleDriveFiles.length > 0" class="text-gray-500">
                         ({{ selectedGoogleDriveFiles.length }}/{{ googleDriveFiles.length }} selected)
+                      </span>
+                      <span v-else-if="isUploadingFromGoogleDrive" class="text-blue-400">
+                        (uploading selected files...)
                       </span>
                     </h3>
                     <div v-if="googleDriveFiles.length > 0" class="flex items-center space-x-2">
@@ -322,7 +342,7 @@
                         variant="ghost"
                         size="xs"
                         color="gray"
-                        :disabled="selectedGoogleDriveFiles.length === googleDriveFiles.length"
+                        :disabled="selectedGoogleDriveFiles.length === googleDriveFiles.length || isAnyOperationInProgress"
                       >
                         Select All
                       </UButton>
@@ -331,7 +351,7 @@
                         variant="ghost"
                         size="xs"
                         color="gray"
-                        :disabled="selectedGoogleDriveFiles.length === 0"
+                        :disabled="selectedGoogleDriveFiles.length === 0 || isAnyOperationInProgress"
                       >
                         Clear All
                       </UButton>
@@ -339,11 +359,18 @@
                   </div>
                 </div>
 
-                <div class="bg-dark-800 min-h-[200px]">
+                <div class="bg-dark-800 min-h-[200px]" :class="{ 'pointer-events-none opacity-60': isAnyOperationInProgress }">
                   <div v-if="googleDriveFiles.length === 0" class="text-center py-16">
-                    <UIcon name="heroicons:folder-open" class="w-12 h-12 text-gray-500 mx-auto mb-3" />
-                    <p class="text-gray-400 text-sm">No files available for selection.</p>
-                    <p class="text-gray-500 text-xs mt-1">Enter a Google Drive URL and click "Fetch Files" to see available files.</p>
+                    <UIcon
+                      :name="isFetchingFiles ? 'heroicons:arrow-path' : 'heroicons:folder-open'"
+                      :class="[
+                        'w-12 h-12 mx-auto mb-3',
+                        isFetchingFiles ? 'text-blue-400 animate-spin' : 'text-gray-500'
+                      ]"
+                    />
+                    <p v-if="isFetchingFiles" class="text-blue-400 text-sm">Fetching files from Google Drive...</p>
+                    <p v-else class="text-gray-400 text-sm">No files available for selection.</p>
+                    <p v-if="!isFetchingFiles" class="text-gray-500 text-xs mt-1">Enter a Google Drive URL and click "Fetch Files" to see available files.</p>
                   </div>
 
                   <UTable
@@ -352,6 +379,7 @@
                     :rows="googleDriveFiles"
                     :columns="googleDriveColumns"
                     :loading="false"
+                    :selection-disabled="isAnyOperationInProgress"
                     class="divide-y divide-dark-700"
                     :ui="{
                       wrapper: 'relative overflow-x-auto',
@@ -412,8 +440,8 @@
               <!-- Bottom Actions -->
               <div class="flex justify-end space-x-3 pt-6 border-t border-dark-600 mt-6">
                 <UButton
-                  @click="$emit('close')"
-                  :disabled="isUploadingFromGoogleDrive"
+                  @click="canCloseModal ? $emit('close') : null"
+                  :disabled="isAnyOperationInProgress"
                   variant="outline"
                   color="gray"
                   size="lg"
@@ -423,7 +451,7 @@
                 </UButton>
                 <UButton
                   @click="uploadFromGoogleDrive"
-                  :disabled="selectedGoogleDriveFiles.length === 0 || isUploadingFromGoogleDrive"
+                  :disabled="selectedGoogleDriveFiles.length === 0 || isAnyOperationInProgress"
                   :loading="isUploadingFromGoogleDrive"
                   color="primary"
                   size="lg"
@@ -444,7 +472,7 @@
 <script setup lang="ts">
 import { z } from 'zod'
 import type { FormSubmitEvent } from '#ui/types'
-import { nextTick } from 'vue'
+import { nextTick, onMounted, onUnmounted, withDefaults } from 'vue'
 import { useArtefactsStore } from '~/stores/artefacts'
 import { useNotification } from '~/composables/useNotification'
 import { useGoogleDrive, type GoogleDriveFile as GoogleOAuthFile } from '~/composables/useGoogleDrive'
@@ -463,9 +491,12 @@ interface GoogleDriveFile {
 interface Props {
   isOpen: boolean
   availableCategories: string[]
+  categoriesLoading?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  categoriesLoading: false
+})
 
 // Initialize artefacts store
 const artefactsStore = useArtefactsStore()
@@ -519,11 +550,8 @@ const googleDriveState = reactive({
   url: '',
 })
 
-const isUploadingFromGoogleDrive = computed(() => artefactsStore.isUploadingGoogleDrive)
-
 // Google Drive computed properties from store
 const googleDriveFiles = computed(() => artefactsStore.googleDriveFiles)
-const isFetchingFiles = computed(() => artefactsStore.isLoadingGoogleDrive)
 
 // Selected Google Drive files for checkbox selection
 const selectedGoogleDriveFiles = ref<GoogleDriveFile[]>([])
@@ -558,15 +586,53 @@ const state = reactive({
 const isDragOver = ref(false)
 const dragCounter = ref(0)
 
-// Upload states
+// Comprehensive loading state management
 const isUploading = ref(false)
-const disabledControl = ref(false)
+const isGoogleOAuthInProgress = ref(false)
+
+// Computed loading states for different operations
+const isUploadingFromGoogleDrive = computed(() => artefactsStore.isUploadingGoogleDrive)
+const isFetchingFiles = computed(() => artefactsStore.isLoadingGoogleDrive)
+const isGoogleSignInLoading = computed(() => googleDrive.isLoading.value)
+
+// Master loading state - true when ANY operation is in progress
+const isAnyOperationInProgress = computed(() =>
+  isUploading.value ||
+  isUploadingFromGoogleDrive.value ||
+  isFetchingFiles.value ||
+  isGoogleSignInLoading.value ||
+  isGoogleOAuthInProgress.value
+)
+
+// Modal and form control states
+const disabledControl = computed(() => isAnyOperationInProgress.value)
+const canCloseModal = computed(() => !isAnyOperationInProgress.value)
+
+// Dynamic loading message based on current operation
+const currentOperationMessage = computed(() => {
+  if (isUploading.value) {
+    return 'Uploading file - modal locked'
+  }
+  if (isUploadingFromGoogleDrive.value) {
+    return 'Uploading files from Google Drive - modal locked'
+  }
+  if (isFetchingFiles.value) {
+    return 'Fetching files from Google Drive - modal locked'
+  }
+  if (isGoogleSignInLoading.value || isGoogleOAuthInProgress.value) {
+    return 'Connecting to Google Drive - modal locked'
+  }
+  return 'Upload in progress - modal locked'
+})
 
 // File input ref
 const fileInput = ref<HTMLInputElement>()
 
 // Category options for USelectMenu
 const categoryOptions = computed(() => {
+  if (props.categoriesLoading) {
+    return [{ label: 'Loading categories...', value: '', deletable: false }]
+  }
   return props.availableCategories.map(category => ({
     label: category,
     value: category,
@@ -576,12 +642,14 @@ const categoryOptions = computed(() => {
 
 // Drag and drop handlers
 const handleDragEnter = (e: DragEvent) => {
+  if (isAnyOperationInProgress.value) return
   e.preventDefault()
   dragCounter.value++
   isDragOver.value = true
 }
 
 const handleDragLeave = (e: DragEvent) => {
+  if (isAnyOperationInProgress.value) return
   e.preventDefault()
   dragCounter.value--
   if (dragCounter.value === 0) {
@@ -590,10 +658,12 @@ const handleDragLeave = (e: DragEvent) => {
 }
 
 const handleDragOver = (e: DragEvent) => {
+  if (isAnyOperationInProgress.value) return
   e.preventDefault()
 }
 
 const handleDrop = (e: DragEvent) => {
+  if (isAnyOperationInProgress.value) return
   e.preventDefault()
   isDragOver.value = false
   dragCounter.value = 0
@@ -605,6 +675,7 @@ const handleDrop = (e: DragEvent) => {
 }
 
 const handleFileSelect = (event: Event) => {
+  if (isAnyOperationInProgress.value) return
   const target = event.target as HTMLInputElement
   if (target.files && target.files[0]) {
     setFile(target.files[0])
@@ -612,26 +683,38 @@ const handleFileSelect = (event: Event) => {
 }
 
 const setFile = (file: File) => {
-  // Validate file size (20MB limit)
-  if (file.size > 20 * 1024 * 1024) {
-    showError('File size must be less than 20MB')
-    return
-  }
+  try {
+    // Validate file size (20MB limit)
+    if (file.size > 20 * 1024 * 1024) {
+      showError('File size must be less than 20MB')
+      return
+    }
 
-  // Validate file type
-  const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain', 'text/csv', 'text/markdown', 'image/png', 'image/jpeg', 'image/jpg']
-  if (!allowedTypes.includes(file.type) && !file.name.endsWith('.md')) {
-    showError('Unsupported file type. Please upload PDF, Word, TXT, CSV, Markdown, or Image files.')
-    return
-  }
+    // Validate file type
+    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain', 'text/csv', 'text/markdown', 'image/png', 'image/jpeg', 'image/jpg']
+    if (!allowedTypes.includes(file.type) && !file.name.endsWith('.md')) {
+      showError('Unsupported file type. Please upload PDF, Word, TXT, CSV, Markdown, or Image files.')
+      return
+    }
 
-  state.file = file
+    state.file = file
+  } catch (error) {
+    console.error('Error setting file:', error)
+    showError('Failed to process the selected file. Please try again.')
+  }
 }
 
 const removeFile = () => {
-  state.file = null
-  if (fileInput.value) {
-    fileInput.value.value = ''
+  try {
+    state.file = null
+    if (fileInput.value) {
+      fileInput.value.value = ''
+    }
+    isDragOver.value = false
+    dragCounter.value = 0
+  } catch (error) {
+    console.error('Error removing file:', error)
+    showError('Failed to remove file. Please try again.')
   }
 }
 
@@ -693,13 +776,14 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
       fileInput.value.value = ''
     }
 
-    isUploading.value = false
     showSuccess(`File "${newArtefact.name}" uploaded successfully!`)
     emit('close')
 
   } catch (error) {
     console.error('Upload failed:', error)
     showError('Upload failed. Please try again.')
+  } finally {
+    // Always reset loading state
     isUploading.value = false
   }
 }
@@ -730,14 +814,19 @@ const fetchGoogleDriveFiles = async () => {
 
     if (!result.success) {
       showError(result.message || 'Failed to fetch files from Google Drive')
+      selectedGoogleDriveFiles.value = []
     } else if (result.files.length === 0) {
       showWarning('No supported files found in the Google Drive folder')
+      selectedGoogleDriveFiles.value = []
     } else {
       showSuccess(`Found ${result.files.length} supported file${result.files.length > 1 ? 's' : ''} available for selection`)
     }
   } catch (error) {
     console.error('Failed to fetch files:', error)
     showError('Failed to fetch files from Google Drive. Please check the URL and try again.')
+    // Clear any partial data on error
+    selectedGoogleDriveFiles.value = []
+    artefactsStore.clearGoogleDriveFiles()
   }
 }
 
@@ -760,7 +849,7 @@ const uploadFromGoogleDrive = async () => {
     )
 
     if (!result.success) {
-      showError(result.message)
+      showError(result.message || 'Upload failed. Please try again.')
       return
     }
 
@@ -786,12 +875,13 @@ const uploadFromGoogleDrive = async () => {
     selectedGoogleDriveFiles.value = []
     artefactsStore.clearGoogleDriveFiles()
 
-    showSuccess(result.message)
+    showSuccess(result.message || 'Files uploaded successfully!')
     emit('close')
 
   } catch (error) {
     console.error('Upload from Google Drive failed:', error)
     showError('Upload failed. Please try again.')
+    // Don't clear form data on error so user can retry
   }
 }
 
@@ -803,41 +893,45 @@ const handleGoogleOAuthSignIn = async () => {
   }
 
   try {
+    isGoogleOAuthInProgress.value = true
+
     // Define the callback function that will handle selected files
     const handleSelectedFiles = async (selectedFiles: GoogleOAuthFile[]) => {
       if (selectedFiles.length === 0) {
+        // User cancelled the picker or no files selected
+        performComprehensiveCleanup()
         return
       }
 
-      // Check for existing files
-      const existingFileNames: string[] = []
-      selectedFiles.forEach((file: GoogleOAuthFile) => {
-        if (googleDrive.checkFileExistence(file.name, [])) {
-          existingFileNames.push(file.name)
-        }
-      })
-
-      if (existingFileNames.length > 0) {
-        showWarning(
-          `The following files already exist: ${existingFileNames.join(', ')}. They will be replaced.`
-        )
-      }
-
-      // Convert GoogleOAuthFile to ArtefactGoogleDriveFile format for upload
-      const convertedFiles = selectedFiles.map((file: GoogleOAuthFile) => ({
-        id: file.id,
-        name: file.name,
-        type: googleDrive.getFileType(file.mimeType),
-        size: file.size,
-        mimeType: file.mimeType,
-        webViewLink: file.webViewLink,
-        thumbnailLink: file.thumbnailLink,
-        modifiedTime: file.modifiedTime,
-        googleAccessToken: file.googleAccessToken
-      }))
-
-      // Upload the files
       try {
+        // Check for existing files
+        const existingFileNames: string[] = []
+        selectedFiles.forEach((file: GoogleOAuthFile) => {
+          if (googleDrive.checkFileExistence(file.name, [])) {
+            existingFileNames.push(file.name)
+          }
+        })
+
+        if (existingFileNames.length > 0) {
+          showWarning(
+            `The following files already exist: ${existingFileNames.join(', ')}. They will be replaced.`
+          )
+        }
+
+        // Convert GoogleOAuthFile to ArtefactGoogleDriveFile format for upload
+        const convertedFiles = selectedFiles.map((file: GoogleOAuthFile) => ({
+          id: file.id,
+          name: file.name,
+          type: googleDrive.getFileType(file.mimeType),
+          size: file.size,
+          mimeType: file.mimeType,
+          webViewLink: file.webViewLink,
+          thumbnailLink: file.thumbnailLink,
+          modifiedTime: file.modifiedTime,
+          googleAccessToken: file.googleAccessToken
+        }))
+
+        // Upload the files
         const result = await artefactsStore.uploadGoogleDriveFiles(
           convertedFiles,
           googleDriveState.category
@@ -875,6 +969,8 @@ const handleGoogleOAuthSignIn = async () => {
       } catch (uploadError) {
         console.error('OAuth upload failed:', uploadError)
         showError('Failed to upload files. Please try again.')
+      } finally {
+        isGoogleOAuthInProgress.value = false
       }
     }
 
@@ -884,18 +980,30 @@ const handleGoogleOAuthSignIn = async () => {
   } catch (error) {
     console.error('Google OAuth sign-in failed:', error)
     showError('Failed to connect to Google Drive. Please try again.')
-    // Ensure cleanup is called even on error
+  } finally {
+    // Ensure cleanup is called and loading state is reset
     googleDrive.cleanup()
+    isGoogleOAuthInProgress.value = false
   }
 }
 
 // Google Drive selection methods
 const selectAllGoogleDriveFiles = () => {
-  selectedGoogleDriveFiles.value = [...googleDriveFiles.value]
+  try {
+    selectedGoogleDriveFiles.value = [...googleDriveFiles.value]
+  } catch (error) {
+    console.error('Error selecting all files:', error)
+    showError('Failed to select all files. Please try again.')
+  }
 }
 
 const clearGoogleDriveSelection = () => {
-  selectedGoogleDriveFiles.value = []
+  try {
+    selectedGoogleDriveFiles.value = []
+  } catch (error) {
+    console.error('Error clearing selection:', error)
+    showError('Failed to clear selection. Please try again.')
+  }
 }
 
 // Helper methods
@@ -926,63 +1034,171 @@ const formatDate = (dateString: string) => {
 
 // Category management methods
 const addCategory = (category: string) => {
-  const trimmedCategory = category.trim()
-  if (trimmedCategory) {
-    emit('categoryAdded', trimmedCategory)
-    state.category = trimmedCategory
-    googleDriveState.category = trimmedCategory
+  try {
+    const trimmedCategory = category.trim()
+    if (trimmedCategory) {
+      emit('categoryAdded', trimmedCategory)
+      state.category = trimmedCategory
+      googleDriveState.category = trimmedCategory
+    }
+  } catch (error) {
+    console.error('Error adding category:', error)
+    showError('Failed to add category. Please try again.')
   }
 }
 
 const deleteCategory = (category: string) => {
-  emit('categoryDeleted', category)
+  try {
+    emit('categoryDeleted', category)
+  } catch (error) {
+    console.error('Error deleting category:', error)
+    showError('Failed to delete category. Please try again.')
+  }
+}
+
+// Comprehensive cleanup function for cancelled or interrupted operations
+const performComprehensiveCleanup = () => {
+  try {
+    // Reset all loading states immediately
+    isUploading.value = false
+    isGoogleOAuthInProgress.value = false
+
+    // Reset form states
+    isDragOver.value = false
+    dragCounter.value = 0
+
+    // Clear Google Drive OAuth and picker
+    googleDrive.cleanup()
+
+    // Clear store state
+    artefactsStore.clearGoogleDriveFiles()
+
+    console.log('Comprehensive cleanup completed')
+  } catch (error) {
+    console.error('Error during comprehensive cleanup:', error)
+  }
 }
 
 // Reset all form fields when modal opens
 const resetAllFields = () => {
-  state.file = null
-  state.category = ''
-  state.description = ''
-  googleDriveState.category = ''
-  googleDriveState.url = ''
-  selectedGoogleDriveFiles.value = []
-  artefactsStore.clearGoogleDriveFiles()
-  googleDrive.cleanup()
+  try {
+    state.file = null
+    state.category = ''
+    state.description = ''
+    googleDriveState.category = ''
+    googleDriveState.url = ''
+    selectedGoogleDriveFiles.value = []
 
-  if (fileInput.value) {
-    fileInput.value.value = ''
+    // Perform comprehensive cleanup
+    performComprehensiveCleanup()
+
+    if (fileInput.value) {
+      fileInput.value.value = ''
+    }
+  } catch (error) {
+    console.error('Error resetting form fields:', error)
+    // Fallback cleanup
+    performComprehensiveCleanup()
   }
 }
 
 // Watch for modal state changes
 watch(() => props.isOpen, (newVal, oldVal) => {
-  if (newVal) {
-    // Modal opened - reset to initial state
-    uploadType.value = 0
-    resetAllFields()
-  } else if (oldVal === true && newVal === false) {
-    // Modal closed - reset all fields
-    nextTick(() => {
+  try {
+    if (newVal) {
+      // Modal opened - reset to initial state
+      uploadType.value = 0
       resetAllFields()
-    })
+    } else if (oldVal === true && newVal === false) {
+      // Modal closed - perform comprehensive cleanup first, then reset fields
+      performComprehensiveCleanup()
+      nextTick(() => {
+        resetAllFields()
+      })
+    }
+  } catch (error) {
+    console.error('Error in modal state watcher:', error)
+    // Fallback cleanup on error
+    performComprehensiveCleanup()
   }
 })
 
 // Watch for tab changes to reset form values
 watch(uploadType, () => {
-  // Reset form fields when switching between tabs
-  state.file = null
-  state.category = ''
-  state.description = ''
-  googleDriveState.category = ''
-  googleDriveState.url = ''
-  selectedGoogleDriveFiles.value = []
-  artefactsStore.clearGoogleDriveFiles()
-  googleDrive.cleanup()
+  try {
+    // Reset form fields when switching between tabs
+    state.file = null
+    state.category = ''
+    state.description = ''
+    googleDriveState.category = ''
+    googleDriveState.url = ''
+    selectedGoogleDriveFiles.value = []
 
-  // Reset file input
-  if (fileInput.value) {
-    fileInput.value.value = ''
+    // Perform comprehensive cleanup
+    performComprehensiveCleanup()
+
+    // Reset file input
+    if (fileInput.value) {
+      fileInput.value.value = ''
+    }
+  } catch (error) {
+    console.error('Error in upload type watcher:', error)
   }
 })
+
+// Cleanup when component unmounts
+onUnmounted(() => {
+  performComprehensiveCleanup()
+})
+
+// Cleanup when user navigates away or closes browser
+onMounted(() => {
+  const handleBeforeUnload = () => {
+    performComprehensiveCleanup()
+  }
+
+  window.addEventListener('beforeunload', handleBeforeUnload)
+
+  // Cleanup the event listener when component unmounts
+  onUnmounted(() => {
+    window.removeEventListener('beforeunload', handleBeforeUnload)
+  })
+})
 </script>
+
+<style scoped>
+.upload-in-progress {
+  position: relative;
+}
+
+.upload-in-progress::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 0.5rem;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.disabled-modal {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+/* Disable table interactions completely during operations */
+.upload-in-progress .divide-y {
+  pointer-events: none;
+}
+
+.upload-in-progress table tbody tr {
+  cursor: not-allowed !important;
+}
+
+.upload-in-progress table tbody tr:hover {
+  background-color: inherit !important;
+}
+</style>

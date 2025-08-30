@@ -18,6 +18,7 @@
       v-model:selected-type="selectedType"
       v-model:selected-status="selectedStatus"
       :available-categories="availableCategories"
+      :categories-loading="categoriesLoading"
     />
 
     <!-- Artefacts Table -->
@@ -33,6 +34,7 @@
     <ArtefactUploadModal
       v-model:is-open="showUploadModal"
       :available-categories="availableCategories"
+      :categories-loading="categoriesLoading"
       @close="showUploadModal = false"
       @file-uploaded="handleFileUploaded"
       @google-drive-uploaded="handleGoogleDriveUploaded"
@@ -52,6 +54,8 @@
 
 <script setup lang="ts">
 import { formatDateTime } from '~/utils'
+import { onMounted, watch } from 'vue'
+import { useNotification } from '~/composables/useNotification'
 
 // Using admin layout
 definePageMeta({
@@ -67,6 +71,10 @@ import ArtefactsTable from '~/components/admin/artefacts/ArtefactsTable.vue'
 import ArtefactUploadModal from '~/components/admin/artefacts/ArtefactUploadModal.vue'
 import ArtefactSummaryModal from '~/components/admin/artefacts/ArtefactSummaryModal.vue'
 
+// Import stores
+import { useAuthStore } from '~/stores/auth'
+import { useOrganizationStore } from '~/stores/organization'
+
 // Reactive data
 const searchQuery = ref('')
 const selectedCategory = ref('')
@@ -76,8 +84,16 @@ const showUploadModal = ref(false)
 const showSummaryModal = ref(false)
 const selectedArtefact = ref(null)
 
-// Categories management
-const availableCategories = ref([
+// Initialize stores
+const authStore = useAuthStore()
+const organizationStore = useOrganizationStore()
+
+// Get orgId from auth user
+const currentUser = computed(() => authStore.user)
+const orgId = computed(() => currentUser.value?.org_id)
+
+// Fallback categories if API is not available
+const fallbackCategories = [
   'HR Policy',
   'Financial',
   'Technical',
@@ -87,7 +103,15 @@ const availableCategories = ref([
   'Product / Service Information',
   'Technical / Operational Documentation',
   'Training & Onboarding'
-])
+]
+
+// Categories management - now from store with fallback
+const availableCategories = computed(() => {
+  const storeCategories = organizationStore.getDocumentCategoryNames
+  return storeCategories.length > 0 ? storeCategories : fallbackCategories
+})
+const categoriesLoading = computed(() => organizationStore.isDocCatLoading)
+const categoriesError = computed(() => organizationStore.getDocCatError)
 
 // Sample artefacts data
 const artefacts = ref([
@@ -218,19 +242,57 @@ const handleGoogleDriveUploaded = (newArtefacts: any[]) => {
 }
 
 // Category management methods
-const addCategory = (category: string) => {
+const addCategory = async (category: string) => {
   const trimmedCategory = category.trim()
-  if (trimmedCategory && !availableCategories.value.includes(trimmedCategory)) {
-    availableCategories.value.push(trimmedCategory)
+  if (!trimmedCategory) return
+
+  if (orgId.value) {
+    // Use API if orgId is available
+    try {
+      await organizationStore.createDocumentCategory(trimmedCategory, orgId.value)
+    } catch (error) {
+      console.error('Failed to add category:', error)
+      // Show error message to user
+      const { showError } = useNotification()
+      showError('Failed to add category. Please try again.')
+    }
+  } else {
+    // Fallback to local management if no orgId
+    console.warn('No organization ID available, category changes will not be persisted')
+    const { showWarning } = useNotification()
+    showWarning('Category added locally only. Changes will not be saved.')
   }
 }
 
-const deleteCategory = (category: string) => {
-  const index = availableCategories.value.indexOf(category)
-  if (index > -1) {
-    availableCategories.value.splice(index, 1)
+const deleteCategory = async (category: string) => {
+  if (orgId.value) {
+    // Use API if orgId is available
+    try {
+      // Find the category ID from the store
+      const categoryToDelete = organizationStore.docCats.find(cat => cat.name === category)
+      if (categoryToDelete) {
+        await organizationStore.deleteDocumentCategory(categoryToDelete.id, orgId.value)
 
-    // Update any existing artefacts that use this category
+        // Update any existing artefacts that use this category
+        artefacts.value.forEach(artefact => {
+          if (artefact.category === category) {
+            artefact.category = 'Uncategorized'
+          }
+        })
+      }
+    } catch (error) {
+      console.error('Failed to delete category:', error)
+      // Show error message to user
+      const { showError } = useNotification()
+      showError('Failed to delete category. Please try again.')
+    }
+  } else {
+    // Fallback to local management if no orgId
+    console.warn('No organization ID available, category changes will not be persisted')
+    const { showWarning } = useNotification()
+    showWarning('Category deleted locally only. Changes will not be saved.')
+
+    // Update any existing artefacts that use this category (local only)
     artefacts.value.forEach(artefact => {
       if (artefact.category === category) {
         artefact.category = 'Uncategorized'
@@ -238,6 +300,32 @@ const deleteCategory = (category: string) => {
     })
   }
 }
+
+// Initialize categories when orgId is available
+const initializeCategories = async () => {
+  if (orgId.value) {
+    try {
+      await organizationStore.fetchDocumentCategories(orgId.value)
+    } catch (error) {
+      console.error('Failed to fetch document categories:', error)
+    }
+  }
+}
+
+// Watch for orgId changes and fetch categories
+watch(orgId, (newOrgId) => {
+  if (newOrgId) {
+    initializeCategories()
+  }
+}, { immediate: true })
+
+// Initialize auth store on mount
+onMounted(() => {
+  authStore.initializeStore()
+  if (orgId.value) {
+    initializeCategories()
+  }
+})
 
 useHead({
   title: 'Artefact Management - Admin Dashboard',

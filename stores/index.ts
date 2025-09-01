@@ -1,9 +1,8 @@
 import { useUsersStore } from './users'
 import { useProfileStore } from './profile'
 import { useAuthStore } from './auth'
-import { usePricingStore } from './pricing'
 import { useContactStore } from './contact'
 import { useOrganizationStore } from './organization'
 // import { useBillingDetailsStore, useGlobalStore } from './global'
 
-export { useContactStore, usePricingStore, useAuthStore, useProfileStore, useUsersStore, useOrganizationStore }
+export { useContactStore, useAuthStore, useProfileStore, useUsersStore, useOrganizationStore }

@@ -28,6 +28,7 @@
       @reprocess-artefact="reprocessArtefact"
       @delete-artefact="deleteArtefact"
       @view-summary="viewSummary"
+      @summarize-artefact="summarizeArtefact"
     />
 
     <!-- Upload Modal -->
@@ -48,6 +49,13 @@
       :artefact="selectedArtefact"
       @close="showSummaryModal = false"
       @download="downloadArtefact"
+    />
+
+    <!-- Document Viewer Modal -->
+    <ArtefactViewModal
+      v-model:is-open="showViewModal"
+      :artefact="selectedViewArtefact"
+      @close="showViewModal = false"
     />
 
     <!-- Confirm Delete Category Popup -->
@@ -91,6 +99,20 @@
       @confirm="confirmReprocessArtefact"
       @cancel="cancelReprocessArtefact"
     />
+
+    <!-- Confirm Summarize Artefact Popup -->
+    <ConfirmPopup
+      v-model:is-open="showConfirmSummarizeArtefact"
+      title="Summarize Document"
+      :message="`Generate AI summary for '${artefactToSummarize?.name}'?`"
+      details="This will analyze the document content and generate an AI-powered summary using the latest models."
+      confirm-text="Generate Summary"
+      cancel-text="Cancel"
+      type="info"
+      :loading="isSummarizingArtefact"
+      @confirm="confirmSummarizeArtefact"
+      @cancel="cancelSummarizeArtefact"
+    />
   </div>
 </template>
 
@@ -112,6 +134,7 @@ import ArtefactsFilters from '~/components/admin/artefacts/ArtefactsFilters.vue'
 import ArtefactsTable from '~/components/admin/artefacts/ArtefactsTable.vue'
 import ArtefactUploadModal from '~/components/admin/artefacts/ArtefactUploadModal.vue'
 import ArtefactSummaryModal from '~/components/admin/artefacts/ArtefactSummaryModal.vue'
+import ArtefactViewModal from '~/components/admin/artefacts/ArtefactViewModal.vue'
 import ConfirmPopup from '~/components/ui/ConfirmPopup.vue'
 
 // Import stores
@@ -126,6 +149,8 @@ const selectedStatus = ref('')
 const showUploadModal = ref(false)
 const showSummaryModal = ref(false)
 const selectedArtefact = ref(null)
+const showViewModal = ref(false)
+const selectedViewArtefact = ref(null)
 
 // Confirm popup state
 const showConfirmPopup = ref(false)
@@ -195,7 +220,8 @@ const filteredArtefacts = computed(() => {
 
 // Methods
 const viewArtefact = (artefact: any) => {
-  // View artefact logic to be implemented
+  selectedViewArtefact.value = artefact
+  showViewModal.value = true
 }
 
 const reprocessArtefact = async (artefact: any) => {
@@ -226,6 +252,11 @@ const isDeletingArtefact = ref(false)
 const showConfirmReprocessArtefact = ref(false)
 const artefactToReprocess = ref<any>(null)
 const isReprocessingArtefact = ref(false)
+
+// Summarize confirmation state
+const showConfirmSummarizeArtefact = ref(false)
+const artefactToSummarize = ref<any>(null)
+const isSummarizingArtefact = ref(false)
 
 // Confirm delete handler
 const confirmDeleteArtefact = async () => {
@@ -294,6 +325,67 @@ const cancelReprocessArtefact = () => {
   showConfirmReprocessArtefact.value = false
   artefactToReprocess.value = null
   isReprocessingArtefact.value = false
+}
+
+// Summarize artefact handler
+const summarizeArtefact = async (artefact: any) => {
+  // Check if artefact can be summarized
+  if (!artefact.id) {
+    const { showError } = useNotification()
+    showError('Cannot summarize artefact - invalid artefact data')
+    return
+  }
+
+  if (artefact.status !== 'processed') {
+    const { showError } = useNotification()
+    showError('Document must be processed before summarization')
+    return
+  }
+
+  if (artefact.summarized === 'Yes') {
+    const { showInfo } = useNotification()
+    showInfo('Document is already summarized. Use "View Summary" to see the existing summary.')
+    return
+  }
+
+  // Show confirmation modal
+  showConfirmSummarizeArtefact.value = true
+  artefactToSummarize.value = artefact
+}
+
+// Confirm summarize handler
+const confirmSummarizeArtefact = async () => {
+  if (!artefactToSummarize.value) return
+
+  isSummarizingArtefact.value = true
+  const { showError, showSuccess, showInfo } = useNotification()
+
+  try {
+    showInfo('Document summarization started! This may take a few moments...')
+
+    const result = await artefactsStore.summarizeArtefact(artefactToSummarize.value.id)
+
+    if (result.success) {
+      showSuccess(result.message)
+      // Refresh the artefacts list to show updated summarization status
+      await artefactsStore.fetchArtefacts()
+    } else {
+      showError(result.message)
+    }
+  } catch (error: any) {
+    showError(error.message || 'Failed to summarize document')
+  } finally {
+    isSummarizingArtefact.value = false
+    showConfirmSummarizeArtefact.value = false
+    artefactToSummarize.value = null
+  }
+}
+
+// Cancel summarize handler
+const cancelSummarizeArtefact = () => {
+  showConfirmSummarizeArtefact.value = false
+  artefactToSummarize.value = null
+  isSummarizingArtefact.value = false
 }
 
 const viewSummary = (artefact: any) => {

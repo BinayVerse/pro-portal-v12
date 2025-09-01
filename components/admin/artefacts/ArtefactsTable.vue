@@ -76,42 +76,83 @@
         </span>
       </template>
 
-      <!-- Summary column with button -->
+      <!-- Summary column with conditional buttons -->
       <template #summary-data="{ row }">
-        <UButton
-          @click="$emit('viewSummary', row)"
-          variant="ghost"
-          size="sm"
-          icon="heroicons:document-magnifying-glass"
-          color="blue"
-          class="text-blue-400 hover:text-blue-300"
-        >
-          View Summary
-        </UButton>
+        <!-- If summarized, show View Summary button -->
+        <div v-if="row.summarized === 'Yes'" class="flex items-center space-x-2">
+          <UButton
+            @click="$emit('viewSummary', row)"
+            variant="ghost"
+            size="sm"
+            icon="heroicons:document-magnifying-glass"
+            color="blue"
+            class="text-blue-400 hover:text-blue-300"
+          >
+            View Summary
+          </UButton>
+        </div>
+        <!-- If not processed, show disabled button -->
+        <div v-else-if="row.status !== 'processed'">
+          <UButton
+            variant="ghost"
+            size="sm"
+            icon="heroicons:document-plus"
+            color="gray"
+            disabled
+            class="text-gray-500 cursor-not-allowed"
+          >
+            Summarize
+          </UButton>
+        </div>
+        <!-- If processed but not summarized, show Summarize button -->
+        <div v-else class="flex items-center space-x-2">
+          <UButton
+            @click="$emit('summarizeArtefact', row)"
+            variant="ghost"
+            size="sm"
+            icon="heroicons:document-plus"
+            color="green"
+            class="text-green-400 hover:text-green-300"
+            :loading="row.isSummarizing"
+          >
+            Summarize
+          </UButton>
+        </div>
       </template>
 
       <!-- Actions column with action buttons -->
       <template #actions-data="{ row }">
         <div class="flex items-center space-x-2">
-          <button
-            @click="$emit('viewArtefact', row)"
-            class="text-blue-400 hover:text-blue-300 transition-colors"
-          >
-            <UIcon name="heroicons:eye" class="w-4 h-4" />
-          </button>
-          <button
-            @click="$emit('reprocessArtefact', row)"
-            class="text-green-400 hover:text-green-300 transition-colors"
-            title="Reprocess Artefact"
-          >
-            <UIcon name="heroicons:arrow-path-rounded-square" class="w-4 h-4" />
-          </button>
-          <button
-            @click="$emit('deleteArtefact', row)"
-            class="text-red-400 hover:text-red-300 transition-colors"
-          >
-            <UIcon name="heroicons:trash" class="w-4 h-4" />
-          </button>
+          <UTooltip text="View Artefact">
+            <button
+              @click="$emit('viewArtefact', row)"
+              class="text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              <UIcon name="heroicons:eye" class="w-4 h-4" />
+            </button>
+          </UTooltip>
+          <UTooltip :text="row.status === 'processed' ? 'Document is already processed' : 'Reprocess Artefact'">
+            <button
+              @click="row.status === 'processed' ? null : $emit('reprocessArtefact', row)"
+              :class="[
+                'transition-colors',
+                row.status === 'processed'
+                  ? 'text-gray-500 cursor-not-allowed opacity-50'
+                  : 'text-green-400 hover:text-green-300'
+              ]"
+              :disabled="row.status === 'processed'"
+            >
+              <UIcon name="heroicons:arrow-path-rounded-square" class="w-4 h-4" />
+            </button>
+          </UTooltip>
+          <UTooltip text="Delete Artefact">
+            <button
+              @click="$emit('deleteArtefact', row)"
+              class="text-red-400 hover:text-red-300 transition-colors"
+            >
+              <UIcon name="heroicons:trash" class="w-4 h-4" />
+            </button>
+          </UTooltip>
         </div>
       </template>
     </UTable>
@@ -130,6 +171,9 @@ interface Artefact {
   uploadedBy: string
   lastUpdated: string
   artefact: string
+  summarized: string
+  summary?: string
+  isSummarizing?: boolean
 }
 
 interface Props {
@@ -143,6 +187,7 @@ defineEmits<{
   reprocessArtefact: [artefact: Artefact]
   deleteArtefact: [artefact: Artefact]
   viewSummary: [artefact: Artefact]
+  summarizeArtefact: [artefact: Artefact]
 }>()
 
 // Table columns configuration

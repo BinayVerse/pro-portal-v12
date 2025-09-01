@@ -37,6 +37,7 @@
     "googleapis": "^159.0.0",
     "jsonwebtoken": "^9.0.2",
     "libphonenumber-js": "^1.12.15",
+    "marked": "^16.2.1",
     "mime-types": "^3.0.1",
     "nuxt": "^3.14.159",
     "nuxt-lodash": "^2.5.3",
@@ -52,6 +53,7 @@
   "devDependencies": {
     "@nuxtjs/tailwindcss": "^6.12.1",
     "@tsconfig/node22": "^22.0.2",
+    "@types/marked": "^5.0.2",
     "@types/node": "^22.15.32",
     "@types/papaparse": "^5.3.16",
     "@types/pg": "^8.15.5",

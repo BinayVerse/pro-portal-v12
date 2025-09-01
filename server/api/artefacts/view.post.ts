@@ -78,20 +78,22 @@ export default defineEventHandler(async (event) => {
         const fileName = doc.name
         const documentLink = doc.document_link
 
-        console.log('Document details:', {
-            fileName,
-            documentLink,
-            org_name,
-            folderName
-        })
 
         // If document_link is already a full S3 URL, extract the key from it
         let fileKey
         if (documentLink.startsWith('http')) {
             try {
                 const url = new URL(documentLink)
-                fileKey = url.pathname.substring(1) // Remove leading slash
-                console.log('Extracted S3 key from URL:', fileKey)
+                // The pathname might already be URL encoded, so we extract it as-is first
+                const rawPath = url.pathname.substring(1) // Remove leading slash
+
+                // Try to decode it, but if it fails, use the raw path
+                try {
+                    fileKey = decodeURIComponent(rawPath)
+                } catch (decodeError) {
+                    fileKey = rawPath
+                }
+
             } catch (err) {
                 console.error('Error parsing document URL:', err)
                 // Fallback to constructing the path
@@ -101,8 +103,16 @@ export default defineEventHandler(async (event) => {
         } else {
             // For relative paths, construct the full key
             const companyName = org_name.toLowerCase().replace(/ /g, '_')
-            fileKey = documentLink.startsWith('/') ? documentLink.substring(1) :
-                     `${folderName}/${companyName}/files/${fileName}`
+            if (documentLink.startsWith('/')) {
+                const rawPath = documentLink.substring(1)
+                try {
+                    fileKey = decodeURIComponent(rawPath)
+                } catch (decodeError) {
+                    fileKey = rawPath
+                }
+            } else {
+                fileKey = `${folderName}/${companyName}/files/${fileName}`
+            }
         }
 
         const s3 = new S3Client({
@@ -113,10 +123,6 @@ export default defineEventHandler(async (event) => {
             },
         })
 
-        console.log('Generating signed URL for:', {
-            bucket: bucketName,
-            key: fileKey
-        })
 
         // First check if the object exists
         try {
@@ -125,12 +131,40 @@ export default defineEventHandler(async (event) => {
                 Key: fileKey,
             })
             const headResult = await s3.send(headCommand)
-            console.log('File exists in S3, metadata:', headResult.Metadata)
         } catch (headError: any) {
-            console.error('File not found in S3:', headError)
-            if (headError.name === 'NotFound' || headError.$metadata?.httpStatusCode === 404) {
-                setResponseStatus(event, 404)
-                throw new CustomError(`File not found in storage: ${fileKey}`, 404)
+            console.error('File not found in S3 with decoded path:', headError)
+
+            // Try different variations of the file path
+            const pathVariations = [
+                fileKey, // Original decoded path
+                encodeURIComponent(fileKey), // Fully encoded path
+                fileKey.replace(/ /g, '%20'), // Only encode spaces
+                fileKey.replace(/%20/g, ' '), // Decode only spaces if they were encoded
+            ]
+
+
+            let foundPath = null
+            for (const variation of pathVariations) {
+                try {
+                    const testCommand = new HeadObjectCommand({
+                        Bucket: bucketName,
+                        Key: variation,
+                    })
+                    await s3.send(testCommand)
+                    foundPath = variation
+                    break
+                } catch (testError) {
+                }
+            }
+
+            if (foundPath) {
+                fileKey = foundPath // Use the path that worked
+            } else {
+                if (headError.name === 'NotFound' || headError.$metadata?.httpStatusCode === 404) {
+                    setResponseStatus(event, 404)
+                    throw new CustomError(`File not found in storage. Tried paths: ${pathVariations.join(', ')}`, 404)
+                }
+                throw headError // Re-throw original error if it's not a 404
             }
         }
 
@@ -141,7 +175,6 @@ export default defineEventHandler(async (event) => {
         })
 
         const signedUrl = await getSignedUrl(s3, command, { expiresIn: 3600 }) // 1 hour
-        console.log('Generated signed URL successfully')
 
         // Use the metadata we already fetched
         const fileCategory = doc.file_category || 'no-category'

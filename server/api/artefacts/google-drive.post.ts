@@ -55,6 +55,19 @@ export default defineEventHandler(async (event) => {
       throw new CustomError('Category is required', 400)
     }
 
+    // Lookup category ID by name
+    const categoryQuery = `
+      SELECT id FROM document_category
+      WHERE name = $1 AND org_id = $2
+    `
+    const categoryResult = await query(categoryQuery, [category, org_id])
+
+    if (categoryResult.rows.length === 0) {
+      throw new CustomError(`Category '${category}' not found for your organization`, 400)
+    }
+
+    const categoryId = categoryResult.rows[0].id
+
     const s3Client = new S3Client({
       region: config.awsRegion,
       credentials: {
@@ -134,21 +147,21 @@ export default defineEventHandler(async (event) => {
       let documentId
       if (existing.rows.length > 0) {
         const result = await query(
-          `UPDATE organization_documents 
-           SET document_link = $1, file_category = $2, status = $3, summary = $4, is_summarized = $5, updated_at = NOW() 
+          `UPDATE organization_documents
+           SET document_link = $1, file_category = $2, status = $3, summary = $4, is_summarized = $5, updated_at = NOW()
            WHERE id = $6 RETURNING id`,
-          [publicUrl, category, 'processing', null, false, existing.rows[0].id]
+          [publicUrl, categoryId, 'processing', null, false, existing.rows[0].id]
         )
         documentId = result.rows[0].id
       } else {
         const result = await query(
-          `INSERT INTO organization_documents 
+          `INSERT INTO organization_documents
            (org_id, doc_type, document_link, status, file_category, name, content_type, file_size, summary, is_summarized)
            VALUES ($1, 'gdrive', $2, 'processing', $3, $4, $5, $6, null, false) RETURNING id`,
           [
             org_id,
             publicUrl,
-            category,
+            categoryId,
             name,
             mimeType,
             size ? parseInt(size.replace(' KB', '')) * 1024 : null,

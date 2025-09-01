@@ -96,6 +96,8 @@
 <script setup lang="ts">
 import { useArtefactsStore } from '~/stores/artefacts'
 import { marked } from 'marked'
+import DOMPurify from 'dompurify'
+import mammoth from 'mammoth'
 
 interface Props {
   isOpen: boolean
@@ -172,95 +174,112 @@ const loadDocument = async () => {
   }
 }
 
-const renderContentByFileType = async (type: string, url: string) => {
+const renderContentByFileType = async (fileType: string, fileUrl: string) => {
+  viewContent.value = null
   try {
-    if (type === 'url') {
-      viewContent.value = `<p>Unable to preview this URL. <a href="${url}" target="_blank" class="text-primary-400 hover:text-primary-300">Open URL in new tab</a>.</p>`
+    if (fileType === 'url') {
+      viewContent.value = `<p>Unable to preview this URL. <a href="${fileUrl}" target="_blank" class="text-primary-400 hover:text-primary-300">view the URL from here</a>.</p>`
       return
     }
 
     // For PDFs and images, use the signed URL directly
-    if (type === 'pdf') {
-      viewContent.value = `<iframe src="${url}" class="w-full h-full border-0" style="height: calc(100vh - 180px);"></iframe>`
+    if (fileType === 'pdf') {
+      viewContent.value = `<iframe src="${fileUrl}" class="w-full h-full border-0" style="height: calc(100vh - 180px);"></iframe>`
       return
     }
 
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(type)) {
-      viewContent.value = `<div class="flex items-center justify-center h-full" style="height: calc(100vh - 180px);"><img src="${url}" class="max-w-full max-h-full object-contain rounded-md shadow-lg" alt="Document image" /></div>`
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileType)) {
+      viewContent.value = `<div class="flex items-center justify-center h-full" style="height: calc(100vh - 180px);"><img src="${fileUrl}" class="max-w-full max-h-full object-contain rounded-md shadow-lg" alt="Document image" /></div>`
       return
     }
 
-    // For other file types, fetch content through proxy
-    const response = await fetch(`/api/artefacts/proxy?fileUrl=${encodeURIComponent(url)}`)
+    const response = await fetch(`/api/artefacts/proxy?fileUrl=${encodeURIComponent(fileUrl)}`)
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
-    }
+    if (!response.ok) throw new Error('Failed to fetch content')
 
     const responseData = await response.json()
-
-    if (responseData.error) {
-      throw new Error(responseData.error)
-    }
 
     const base64Data = responseData.data
     const decodedData = atob(base64Data)
 
-    switch (type) {
+    switch (fileType) {
       case 'txt':
-        viewContent.value = `<div class="h-full overflow-y-auto p-4"><pre style="white-space: pre-wrap; padding: 1rem; background: white; border-radius: 0.375rem; font-family: 'Courier New', monospace; min-height: calc(100vh - 220px); color: #1f2937;">${escapeHtml(decodedData)}</pre></div>`
+        viewContent.value = `<div style="height: calc(100vh - 190px); overflow-y: auto; margin: 20px;"><pre style="white-space: pre-wrap; padding: 1rem; background: #1e293b; color: #e2e8f0; border-radius: 0.375rem;">${escapeHtml(decodedData)}</pre></div>`
         break
 
-      case 'md':
-        // Configure and render markdown as HTML using marked
-        configureMarked()
-        const renderedMarkdown = marked.parse(decodedData)
-        viewContent.value = `<div class="h-full overflow-y-auto p-4" style="background: white; color: #1f2937; line-height: 1.6; min-height: calc(100vh - 220px);">${renderedMarkdown}</div>`
+      case 'md': {
+        const htmlContent = marked(decodedData, {
+          gfm: true,
+          breaks: true,
+        })
+        viewContent.value = `<div style="height: calc(100vh - 190px); overflow-y: auto; background: #1e293b; border-radius: 0.375rem; margin: 20px;"><div style="padding: 1rem; color: #e2e8f0;" class="prose prose-sm max-w-none prose-invert">${DOMPurify.sanitize(htmlContent)}</div></div>`
         break
+      }
 
-      case 'csv':
-        // Basic CSV display - you can enhance this with proper table rendering
-        const csvLines = decodedData.split('\n').slice(0, 100) // Show first 100 lines for fullscreen
-        const csvTable = csvLines
-          .map(
-            (line) =>
-              `<tr>${line
-                .split(',')
-                .map((cell) => `<td class="border px-2 py-1">${escapeHtml(cell.trim())}</td>`)
-                .join('')}</tr>`,
-          )
-          .join('')
-        viewContent.value = `
-          <div class="h-full overflow-auto p-4" style="height: calc(100vh - 180px); color: #1f2937;">
-            <table class="min-w-full border-collapse border border-gray-300" style="color: #1f2937;">
-              ${csvTable}
-            </table>
-            ${csvLines.length === 100 ? '<p class="text-sm mt-2" style="color: #6b7280;">Showing first 100 rows...</p>' : ''}
-          </div>`
+      case 'csv': {
+        const csvText = decodedData
+        const tableHTML = parseCSVToHTML(csvText)
+        viewContent.value = tableHTML
         break
+      }
+
+      case 'docx': {
+        let arrayBuffer
+
+        try {
+          if (decodedData.startsWith('data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,')) {
+            // Extract base64 content after the prefix
+            const base64Content = decodedData.split(',')[1]
+            const binaryString = atob(base64Content)
+            arrayBuffer = new ArrayBuffer(binaryString.length)
+            const view = new Uint8Array(arrayBuffer)
+            for (let i = 0; i < binaryString.length; i++) {
+              view[i] = binaryString.charCodeAt(i)
+            }
+          } else {
+            // Convert string to ArrayBuffer
+            const binaryString = decodedData
+            arrayBuffer = new ArrayBuffer(binaryString.length)
+            const view = new Uint8Array(arrayBuffer)
+            for (let i = 0; i < binaryString.length; i++) {
+              view[i] = binaryString.charCodeAt(i)
+            }
+          }
+
+          mammoth
+            .convertToHtml({ arrayBuffer: arrayBuffer })
+            .then((result) => {
+              viewContent.value = `<div style="height: calc(100vh - 190px); overflow-y: auto; margin: 20px;"><div style="padding: 1rem; white-space: pre-wrap; background: #1e293b; color: #e2e8f0; border-radius: 0.375rem;">${result.value}</div></div>`
+            })
+            .catch((err) => {
+              viewContent.value = `<p>Failed to load the file. <a href="${fileUrl}" download class="text-primary-400 hover:text-primary-300">Download the file here</a>.</p>`
+            })
+        } catch (err) {
+          viewContent.value = `<p>Failed to load the file. <a href="${fileUrl}" download class="text-primary-400 hover:text-primary-300">Download the file here</a>.</p>`
+        }
+        break
+      }
 
       case 'json':
         try {
           const jsonData = JSON.parse(decodedData)
-          viewContent.value = `<div class="h-full overflow-y-auto p-4"><pre style="white-space: pre-wrap; padding: 1rem; background: white; border-radius: 0.375rem; font-family: 'Courier New', monospace; min-height: calc(100vh - 220px); color: #1f2937;">${escapeHtml(JSON.stringify(jsonData, null, 2))}</pre></div>`
+          viewContent.value = `<div style="height: calc(100vh - 190px); overflow-y: auto; margin: 20px;"><pre style="white-space: pre-wrap; padding: 1rem; background: #1e293b; color: #e2e8f0; border-radius: 0.375rem;">${escapeHtml(JSON.stringify(jsonData, null, 2))}</pre></div>`
         } catch {
-          viewContent.value = `<div class="h-full overflow-y-auto p-4"><pre style="white-space: pre-wrap; padding: 1rem; background: white; border-radius: 0.375rem; font-family: 'Courier New', monospace; min-height: calc(100vh - 220px); color: #1f2937;">${escapeHtml(decodedData)}</pre></div>`
+          viewContent.value = `<div style="height: calc(100vh - 190px); overflow-y: auto; margin: 20px;"><pre style="white-space: pre-wrap; padding: 1rem; background: #1e293b; color: #e2e8f0; border-radius: 0.375rem;">${escapeHtml(decodedData)}</pre></div>`
         }
         break
 
       case 'html':
         // For security, we'll show HTML as text
-        viewContent.value = `<div class="h-full overflow-y-auto p-4"><pre style="white-space: pre-wrap; padding: 1rem; background: white; border-radius: 0.375rem; font-family: 'Courier New', monospace; min-height: calc(100vh - 220px); color: #1f2937;">${escapeHtml(decodedData)}</pre></div>`
+        viewContent.value = `<div style="height: calc(100vh - 190px); overflow-y: auto; margin: 20px;"><pre style="white-space: pre-wrap; padding: 1rem; background: #1e293b; color: #e2e8f0; border-radius: 0.375rem;">${escapeHtml(decodedData)}</pre></div>`
         break
 
       default:
-        // For other file types, show download option
-        viewContent.value = `<div class="flex items-center justify-center h-full"><p>Unable to preview this file type (${type}). <a href="${url}" download class="text-primary-400 hover:text-primary-300">Download the file</a> to view it.</p></div>`
+        viewContent.value = `<p>Unable to preview this file. <a href="${fileUrl}" class="text-primary-400 hover:text-primary-300" download>Download the file here</a>.</p>`
     }
-  } catch (err: any) {
-    console.error('Error rendering content:', err)
-    viewContent.value = `<div class="flex items-center justify-center h-full"><p>Failed to load the file content. <a href="${url}" download class="text-primary-400 hover:text-primary-300">Download the file</a> to view it.</p></div>`
+  } catch (error) {
+    console.error('Error rendering content:', error)
+    viewContent.value = `<p>Failed to load the file. <a href="${fileUrl}" download class="text-primary-400 hover:text-primary-300">Download the file here</a>.</p>`
   }
 }
 
@@ -270,65 +289,56 @@ const escapeHtml = (text: string): string => {
   return div.innerHTML
 }
 
-// Configure marked with custom renderer for styling
-const configureMarked = () => {
-  const renderer = new marked.Renderer()
+// Parse CSV text to HTML table with robust parsing
+const parseCSVToHTML = (csvContent: string): string => {
+  // Split the CSV content into rows
+  const rows = csvContent.split('\n').filter((row) => row.trim() !== '')
 
-  // Custom heading styles
-  renderer.heading = (text: string, level: number) => {
-    const sizes = ['1.875rem', '1.5rem', '1.25rem', '1.125rem', '1rem', '0.875rem']
-    const margins = ['2rem 0 1rem 0', '1.5rem 0 0.75rem 0', '1rem 0 0.5rem 0', '1rem 0 0.5rem 0', '0.75rem 0 0.5rem 0', '0.75rem 0 0.5rem 0']
+  // Parse each row
+  const parsedRows = rows.map((row) => {
+    const regex = /(?:,|\n|^)(\"([^\"]*)\"|([^\",]*))/g
+    const parsedRow: string[] = []
+    let match
+    let lastIndex = 0
 
-    return `<h${level} style="font-size: ${sizes[level-1]}; font-weight: 600; margin: ${margins[level-1]}; color: #1f2937;">${text}</h${level}>`
-  }
-
-  // Custom paragraph styles
-  renderer.paragraph = (text: string) => {
-    return `<p style="margin: 1rem 0; color: #1f2937; line-height: 1.6;">${text}</p>`
-  }
-
-  // Custom code block styles
-  renderer.code = (code: string, language: string | undefined) => {
-    return `<pre style="background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; margin: 1rem 0; overflow-x: auto; color: #1f2937;"><code>${code}</code></pre>`
-  }
-
-  // Custom inline code styles
-  renderer.codespan = (code: string) => {
-    return `<code style="background: #f3f4f6; padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-family: monospace; color: #1f2937;">${code}</code>`
-  }
-
-  // Custom blockquote styles
-  renderer.blockquote = (quote: string) => {
-    return `<blockquote style="border-left: 4px solid #e5e7eb; padding-left: 1rem; margin: 1rem 0; font-style: italic; color: #6b7280;">${quote}</blockquote>`
-  }
-
-  // Custom list styles
-  renderer.list = (body: string, ordered: boolean) => {
-    const type = ordered ? 'ol' : 'ul'
-    const style = ordered ? 'list-style-type: decimal;' : 'list-style-type: disc;'
-    return `<${type} style="margin: 1rem 0; padding-left: 1.5rem; ${style}">${body}</${type}>`
-  }
-
-  renderer.listitem = (text: string) => {
-    return `<li style="margin: 0.25rem 0; color: #1f2937;">${text}</li>`
-  }
-
-  // Custom link styles
-  renderer.link = (href: string, title: string | null, text: string) => {
-    return `<a href="${href}" ${title ? `title="${title}"` : ''} style="color: #3b82f6; text-decoration: underline;" target="_blank">${text}</a>`
-  }
-
-  // Custom horizontal rule
-  renderer.hr = () => {
-    return '<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 2rem 0;">'
-  }
-
-  marked.setOptions({
-    renderer,
-    gfm: true,
-    breaks: false,
-    sanitize: false
+    while ((match = regex.exec(row)) !== null) {
+      let value = match[2] ? match[2] : match[3]
+      parsedRow.push(value)
+      lastIndex = match.index + match[0].length
+    }
+    return parsedRow
   })
+
+  // Ensure that all rows have the same length
+  const columnCount = Math.max(...parsedRows.map((row) => row.length))
+  parsedRows.forEach((row) => {
+    while (row.length < columnCount) {
+      row.push('')
+    }
+  })
+
+  // Remove quotes from headers
+  const headers = parsedRows[0].map((header) => header?.replace(/"/g, ''))
+
+  let tableHTML = '<div style="height: calc(100vh - 190px); overflow-y: auto; margin: 20px; background: #1e293b; border-radius: 0.375rem; padding: 1rem;"><table class="table-auto border-collapse border border-gray-300"><thead><tr>'
+
+  headers.forEach((col) => {
+    tableHTML += `<th class="border border-gray-300 p-2">${escapeHtml(col)}</th>`
+  })
+
+  tableHTML += '</tr></thead><tbody>'
+
+  // Add table rows
+  parsedRows.slice(1).forEach((row) => {
+    tableHTML += '<tr>'
+    row.forEach((cell) => {
+      tableHTML += `<td class="border border-gray-300 p-2">${escapeHtml(cell)}</td>`
+    })
+    tableHTML += '</tr>'
+  })
+
+  tableHTML += '</tbody></table></div>'
+  return tableHTML
 }
 
 const retry = async () => {
@@ -363,5 +373,124 @@ const closeModal = () => {
 .prose td {
   padding: 0.25rem 0.5rem;
   border: 1px solid #e5e7eb;
+}
+
+/* Global markdown styling for rendered content - Dark theme */
+:deep(.prose h1) {
+  font-size: 1.875rem;
+  font-weight: 600;
+  margin: 2rem 0 1rem 0;
+  color: #e2e8f0;
+}
+
+:deep(.prose h2) {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 1.5rem 0 0.75rem 0;
+  color: #e2e8f0;
+}
+
+:deep(.prose h3) {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 1rem 0 0.5rem 0;
+  color: #e2e8f0;
+}
+
+:deep(.prose h4),
+:deep(.prose h5),
+:deep(.prose h6) {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 1rem 0 0.5rem 0;
+  color: #e2e8f0;
+}
+
+:deep(.prose p) {
+  margin: 1rem 0;
+  color: #e2e8f0;
+  line-height: 1.6;
+}
+
+:deep(.prose code) {
+  background: #334155;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-family: monospace;
+  color: #fbbf24;
+  font-size: 0.875rem;
+}
+
+:deep(.prose pre) {
+  background: #0f172a;
+  padding: 1rem;
+  border-radius: 0.375rem;
+  margin: 1rem 0;
+  overflow-x: auto;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+}
+
+:deep(.prose pre code) {
+  background: transparent;
+  padding: 0;
+  color: #e2e8f0;
+}
+
+:deep(.prose blockquote) {
+  border-left: 4px solid #475569;
+  padding-left: 1rem;
+  margin: 1rem 0;
+  font-style: italic;
+  color: #94a3b8;
+}
+
+:deep(.prose ul),
+:deep(.prose ol) {
+  margin: 1rem 0;
+  padding-left: 1.5rem;
+}
+
+:deep(.prose li) {
+  margin: 0.25rem 0;
+  color: #e2e8f0;
+}
+
+:deep(.prose a) {
+  color: #60a5fa;
+  text-decoration: underline;
+}
+
+:deep(.prose a:hover) {
+  color: #3b82f6;
+}
+
+:deep(.prose hr) {
+  border: none;
+  border-top: 1px solid #475569;
+  margin: 2rem 0;
+}
+
+:deep(.prose table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+:deep(.prose th),
+:deep(.prose td) {
+  border: 1px solid #475569;
+  padding: 0.5rem;
+  text-align: left;
+  color: #e2e8f0;
+}
+
+:deep(.prose th) {
+  background-color: #334155;
+  font-weight: 600;
+}
+
+:deep(.prose td) {
+  background-color: #1e293b;
 }
 </style>

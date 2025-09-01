@@ -41,7 +41,7 @@ export default defineEventHandler(async (event) => {
         COUNT(od.id) as document_count
       FROM document_category dc
       LEFT JOIN users u ON dc.added_by = u.user_id
-      LEFT JOIN organization_documents od ON dc.name = od.file_category AND dc.org_id = od.org_id
+      LEFT JOIN organization_documents od ON dc.id::text = od.file_category AND dc.org_id = od.org_id
       WHERE dc.org_id = $1
       GROUP BY dc.id, dc.name, dc.org_id, dc.added_by, dc.created_at, dc.updated_at, u.name
       ORDER BY dc.name ASC`,

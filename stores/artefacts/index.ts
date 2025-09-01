@@ -26,13 +26,18 @@ export const useArtefactsStore = defineStore('artefacts', {
 
   getters: {
     // Category getters
-    getCategories: (state): DocumentCategory[] => state.categories,
-    getCategoryNames: (state): string[] => state.categories.map(cat => cat.name),
+    getCategories: (state): DocumentCategory[] => state.categories || [],
+    getCategoryNames: (state): string[] => (state.categories || []).map(cat => cat?.name || '').filter(name => name),
     isCategoryLoadingState: (state): boolean => state.isCategoryLoading,
     getCategoryError: (state): string | null => state.categoryError,
     // Artefacts getters
-    getArtefacts: (state): any[] => state.artefacts,
-    getStats: (state) => state.stats,
+    getArtefacts: (state): any[] => state.artefacts || [],
+    getStats: (state) => state.stats || {
+      totalArtefacts: 0,
+      processedArtefacts: 0,
+      totalCategories: 0,
+      totalSize: '0 Bytes'
+    },
     isArtefactsLoading: (state): boolean => state.isLoadingArtefacts,
     getArtefactsError: (state): string | null => state.artefactsError,
   },
@@ -61,7 +66,6 @@ export const useArtefactsStore = defineStore('artefacts', {
           message: data.message || 'Files fetched successfully'
         }
       } catch (error: any) {
-        console.error('Google Drive fetch error:', error)
         this.googleDriveFiles = []
         return {
           success: false,
@@ -96,8 +100,6 @@ export const useArtefactsStore = defineStore('artefacts', {
           message: data.message || 'Files uploaded successfully'
         }
       } catch (error: any) {
-        console.error('Google Drive upload error:', error)
-
         // Handle authentication errors
         if (error.statusCode === 401) {
           localStorage.removeItem('authToken')
@@ -151,8 +153,6 @@ export const useArtefactsStore = defineStore('artefacts', {
           message: response.message
         }
       } catch (error: any) {
-        console.error('Artefact upload error:', error)
-
         // Handle authentication errors
         if (error.statusCode === 401 || error.response?.status === 401) {
           if (process.client) {
@@ -172,8 +172,6 @@ export const useArtefactsStore = defineStore('artefacts', {
     },
 
     handleError(error: any, fallbackMessage: string): string {
-      console.error('Artefacts store error:', error)
-
       if (error?.data?.message) {
         return error.data.message
       }
@@ -194,8 +192,6 @@ export const useArtefactsStore = defineStore('artefacts', {
         error?.data?.message ||
         error?.message ||
         defaultMessage
-
-      console.error('Category error:', error)
 
       if (!silent) {
         showError(errorMessage)
@@ -257,8 +253,6 @@ export const useArtefactsStore = defineStore('artefacts', {
         this.categories = data || []
         this.newCategory = null
       } catch (error: any) {
-        console.error('Fetch categories error:', error)
-
         if (!await this.handleAuthError(error)) {
           this.categoryError = this.handleCategoryError(error, 'Failed to fetch categories')
         }
@@ -287,8 +281,6 @@ export const useArtefactsStore = defineStore('artefacts', {
         // Refresh the categories list
         await this.fetchCategories(orgId)
       } catch (error: any) {
-        console.error('Create category error:', error)
-
         if (!await this.handleAuthError(error)) {
           this.categoryError = this.handleCategoryError(error, 'Error creating category')
         }
@@ -312,8 +304,6 @@ export const useArtefactsStore = defineStore('artefacts', {
         // Refresh the categories list
         await this.fetchCategories(orgId)
       } catch (error: any) {
-        console.error('Delete category error:', error)
-
         if (!await this.handleAuthError(error)) {
           this.categoryError = this.handleCategoryError(error, 'Error deleting category')
         }
@@ -337,8 +327,6 @@ export const useArtefactsStore = defineStore('artefacts', {
         this.categories = data || []
         return data || []
       } catch (error: any) {
-        console.error('Get all categories error:', error)
-
         if (!await this.handleAuthError(error)) {
           this.categoryError = this.handleCategoryError(error, 'Failed to fetch categories')
         }
@@ -410,8 +398,6 @@ export const useArtefactsStore = defineStore('artefacts', {
           message: response.message
         }
       } catch (error: any) {
-        console.error('Artefacts fetch error:', error)
-
         // Handle authentication errors
         if (error.statusCode === 401 || error.response?.status === 401) {
           if (process.client) {
@@ -446,6 +432,99 @@ export const useArtefactsStore = defineStore('artefacts', {
 
     clearArtefactsError() {
       this.artefactsError = null
+    },
+
+    // Reprocess artefact method
+    async reprocessArtefact(artefactId: number) {
+      try {
+        const token = process.client ? localStorage.getItem('authToken') : null
+        if (!token) {
+          throw new Error('Authentication required')
+        }
+
+        const response = await $fetch<{
+          statusCode: number
+          status: string
+          message: string
+          data: any
+        }>(`/api/artefacts/reprocess/${artefactId}`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (response.status === 'error') {
+          throw new Error(response.message)
+        }
+
+        return {
+          success: true,
+          message: response.message || 'Artefact reprocessing started successfully'
+        }
+      } catch (error: any) {
+        // Handle authentication errors
+        if (error.statusCode === 401 || error.response?.status === 401) {
+          if (process.client) {
+            localStorage.removeItem('authToken')
+            localStorage.removeItem('authUser')
+          }
+          await navigateTo('/login')
+          throw new Error('Session expired. Please log in again.')
+        }
+
+        return {
+          success: false,
+          message: this.handleError(error, 'Failed to reprocess artefact')
+        }
+      }
+    },
+
+    // Delete artefact method
+    async deleteArtefact(artefactId: number, artefactName: string) {
+      try {
+        const token = process.client ? localStorage.getItem('authToken') : null
+        if (!token) {
+          throw new Error('Authentication required')
+        }
+
+        const response = await $fetch<{
+          statusCode: number
+          status: string
+          message: string
+          data: any
+        }>('/api/artefacts/delete', {
+          method: 'POST',
+          body: { artefactId, artefactName },
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (response.status === 'error') {
+          throw new Error(response.message)
+        }
+
+        return {
+          success: true,
+          message: response.message || 'Artefact deleted successfully'
+        }
+      } catch (error: any) {
+        // Handle authentication errors
+        if (error.statusCode === 401 || error.response?.status === 401) {
+          if (process.client) {
+            localStorage.removeItem('authToken')
+            localStorage.removeItem('authUser')
+          }
+          await navigateTo('/login')
+          throw new Error('Session expired. Please log in again.')
+        }
+
+        return {
+          success: false,
+          message: this.handleError(error, 'Failed to delete artefact')
+        }
+      }
     },
   },
 })

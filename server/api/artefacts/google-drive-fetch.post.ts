@@ -87,7 +87,6 @@ export default defineEventHandler(async (event) => {
             otherFiles: allFiles.length - filteredFiles.length,
         }
     } catch (err: any) {
-        console.error('Error fetching Google Drive files:', err)
         throw new CustomError(err.message || 'Failed to fetch files', 500)
     }
 })

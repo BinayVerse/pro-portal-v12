@@ -74,7 +74,6 @@ export default defineEventHandler(async (event) => {
     if (err instanceof CustomError) {
       throw err
     }
-    console.error('Error deleting category:', err)
     setResponseStatus(event, 500)
     throw new CustomError('Error deleting category', 500)
   }

@@ -100,8 +100,9 @@
             <UIcon name="heroicons:eye" class="w-4 h-4" />
           </button>
           <button
-            @click="$emit('downloadArtefact', row)"
+            @click="$emit('reprocessArtefact', row)"
             class="text-green-400 hover:text-green-300 transition-colors"
+            title="Reprocess Artefact"
           >
             <UIcon name="heroicons:arrow-path-rounded-square" class="w-4 h-4" />
           </button>
@@ -139,7 +140,7 @@ defineProps<Props>()
 
 defineEmits<{
   viewArtefact: [artefact: Artefact]
-  downloadArtefact: [artefact: Artefact]
+  reprocessArtefact: [artefact: Artefact]
   deleteArtefact: [artefact: Artefact]
   viewSummary: [artefact: Artefact]
 }>()

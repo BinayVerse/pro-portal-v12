@@ -80,7 +80,6 @@ export default defineEventHandler(async (event) => {
     if (err instanceof CustomError) {
       throw err
     }
-    console.error('Error creating category:', err)
     setResponseStatus(event, 500)
     throw new CustomError('Error creating category', 500)
   }

@@ -113,8 +113,6 @@ export default defineEventHandler(async (event) => {
           })
         )
       } catch (s3Error: any) {
-        console.error('S3 Upload Error:', s3Error)
-
         // Check if it's a path/permission issue
         if (s3Error.Code === 'NoSuchBucket') {
           throw new CustomError(`S3 bucket '${bucketName}' does not exist`, 500)
@@ -187,7 +185,6 @@ export default defineEventHandler(async (event) => {
       files: uploadedFiles,
     }
   } catch (error: any) {
-    console.error('Error uploading files from Google Drive:', error)
     throw new CustomError(error.message || 'Failed to upload files', 500)
   }
 })

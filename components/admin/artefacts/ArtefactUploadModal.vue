@@ -4,12 +4,12 @@
     @update:model-value="canCloseModal ? $emit('update:isOpen', $event) : null"
     :ui="{ width: 'sm:max-w-4xl' }"
     :class="{ 'disabled-modal': disabledControl }"
-    :preventClose="true"
+    preventClose
   >
     <div class="p-8" :class="{ 'upload-in-progress': isAnyOperationInProgress }">
       <div class="flex items-center justify-between mb-6 pb-4 border-b border-dark-600">
         <div>
-          <h3 class="text-xl font-semibold text-white">Please choose an upload methodddddd:</h3>
+          <h3 class="text-xl font-semibold text-white">Please choose an upload method:</h3>
           <div
             v-if="isAnyOperationInProgress"
             class="mt-2 flex items-center text-amber-400 text-sm"
@@ -749,7 +749,6 @@ const setFile = (file: File) => {
 
     state.file = file
   } catch (error) {
-    console.error('Error setting file:', error)
     showError('Failed to process the selected file. Please try again.')
   }
 }
@@ -763,7 +762,6 @@ const removeFile = () => {
     isDragOver.value = false
     dragCounter.value = 0
   } catch (error) {
-    console.error('Error removing file:', error)
     showError('Failed to remove file. Please try again.')
   }
 }
@@ -827,7 +825,6 @@ const onSubmit = async (event: FormSubmitEvent<Schema>) => {
     showSuccess(result.message || 'File uploaded successfully!')
     emit('close')
   } catch (error) {
-    console.error('Upload failed:', error)
     showError('Upload failed. Please try again.')
   } finally {
     // Always reset loading state
@@ -871,7 +868,6 @@ const fetchGoogleDriveFiles = async () => {
       )
     }
   } catch (error) {
-    console.error('Failed to fetch files:', error)
     showError('Failed to fetch files from Google Drive. Please check the URL and try again.')
     // Clear any partial data on error
     selectedGoogleDriveFiles.value = []
@@ -927,7 +923,6 @@ const uploadFromGoogleDrive = async () => {
     showSuccess(result.message || 'Files uploaded successfully!')
     emit('close')
   } catch (error) {
-    console.error('Upload from Google Drive failed:', error)
     showError('Upload failed. Please try again.')
     // Don't clear form data on error so user can retry
   }
@@ -1017,7 +1012,6 @@ const handleGoogleOAuthSignIn = async () => {
           showError(result.message || 'Upload failed')
         }
       } catch (uploadError) {
-        console.error('OAuth upload failed:', uploadError)
         showError('Failed to upload files. Please try again.')
       } finally {
         isGoogleOAuthInProgress.value = false
@@ -1027,7 +1021,6 @@ const handleGoogleOAuthSignIn = async () => {
     // Start OAuth flow with custom callback
     await googleDrive.signInWithGoogle(handleSelectedFiles)
   } catch (error) {
-    console.error('Google OAuth sign-in failed:', error)
     showError('Failed to connect to Google Drive. Please try again.')
   } finally {
     // Ensure cleanup is called and loading state is reset
@@ -1041,7 +1034,6 @@ const selectAllGoogleDriveFiles = () => {
   try {
     selectedGoogleDriveFiles.value = [...googleDriveFiles.value]
   } catch (error) {
-    console.error('Error selecting all files:', error)
     showError('Failed to select all files. Please try again.')
   }
 }
@@ -1050,7 +1042,6 @@ const clearGoogleDriveSelection = () => {
   try {
     selectedGoogleDriveFiles.value = []
   } catch (error) {
-    console.error('Error clearing selection:', error)
     showError('Failed to clear selection. Please try again.')
   }
 }
@@ -1091,7 +1082,6 @@ const addCategory = (category: string) => {
       googleDriveState.category = trimmedCategory
     }
   } catch (error) {
-    console.error('Error adding category:', error)
     showError('Failed to add category. Please try again.')
   }
 }
@@ -1100,7 +1090,6 @@ const deleteCategory = (category: string) => {
   try {
     emit('categoryDeleted', category)
   } catch (error) {
-    console.error('Error deleting category:', error)
     showError('Failed to delete category. Please try again.')
   }
 }
@@ -1122,9 +1111,8 @@ const performComprehensiveCleanup = () => {
     // Clear store state
     artefactsStore.clearGoogleDriveFiles()
 
-    console.log('Comprehensive cleanup completed')
   } catch (error) {
-    console.error('Error during comprehensive cleanup:', error)
+    // Cleanup error handled silently
   }
 }
 
@@ -1145,7 +1133,6 @@ const resetAllFields = () => {
       fileInput.value.value = ''
     }
   } catch (error) {
-    console.error('Error resetting form fields:', error)
     // Fallback cleanup
     performComprehensiveCleanup()
   }
@@ -1168,7 +1155,6 @@ watch(
         })
       }
     } catch (error) {
-      console.error('Error in modal state watcher:', error)
       // Fallback cleanup on error
       performComprehensiveCleanup()
     }
@@ -1194,7 +1180,7 @@ watch(uploadType, () => {
       fileInput.value.value = ''
     }
   } catch (error) {
-    console.error('Error in upload type watcher:', error)
+    // Error handled silently
   }
 })
 

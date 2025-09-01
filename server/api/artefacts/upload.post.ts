@@ -98,7 +98,6 @@ export default defineEventHandler(async (event) => {
     try {
       fileBuffer = fs.readFileSync(filePath)
     } catch (err) {
-      console.error('File read failed:', err)
       throw new CustomError('Failed to read uploaded file', 500)
     }
 
@@ -207,7 +206,6 @@ export default defineEventHandler(async (event) => {
         message: error.message,
       }
     }
-    console.error('Error:', error)
     setResponseStatus(event, 500)
     return {
       statusCode: 500,
@@ -216,7 +214,6 @@ export default defineEventHandler(async (event) => {
     }
   }
   } catch (outerError: any) {
-    console.error('Unexpected error:', outerError)
     setResponseStatus(event, 500)
     return {
       statusCode: 500,

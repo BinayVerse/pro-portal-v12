@@ -58,7 +58,6 @@ export default defineEventHandler(async (event) => {
         : 'No categories found in your organization',
     }
   } catch (err) {
-    console.error('Error fetching categories:', err)
     setResponseStatus(event, 500)
     throw new CustomError('Error fetching categories', 500)
   }

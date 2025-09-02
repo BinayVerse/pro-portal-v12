@@ -78,8 +78,8 @@
             class="flex items-center justify-between p-4 bg-dark-900 rounded-lg border border-dark-700"
           >
             <div class="flex items-center space-x-3">
-              <div class="w-10 h-10 bg-dark-700 rounded-lg flex items-center justify-center">
-                <component :is="integration.icon" class="w-5 h-5 text-gray-300" />
+              <div class="w-10 h-10 rounded-lg flex items-center justify-center" :class="integration.bgColor">
+                <UIcon :name="integration.icon" class="w-5 h-5" :class="integration.color" />
               </div>
               <div>
                 <div class="text-white font-medium">{{ integration.name }}</div>
@@ -93,12 +93,21 @@
                 :class="
                   integration.connected
                     ? 'bg-green-500/20 text-green-400'
-                    : 'bg-gray-500/20 text-gray-400'
+                    : integration.name === 'iMessage'
+                      ? 'bg-yellow-500/20 text-yellow-400'
+                      : 'bg-gray-500/20 text-gray-400'
                 "
               >
-                {{ integration.connected ? 'Connected' : 'Disconnected' }}
+                {{
+                  integration.connected
+                    ? 'Connected'
+                    : integration.name === 'iMessage'
+                      ? 'Coming Soon'
+                      : 'Disconnected'
+                }}
               </span>
               <button
+                @click="navigateToIntegration(integration.path)"
                 class="px-3 py-1 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
               >
                 Configure
@@ -145,9 +154,6 @@ definePageMeta({
   middleware: 'auth',
 })
 
-// Import icon components
-import { h } from 'vue'
-
 // Sample data
 const activeIntegrations = ref(2)
 const totalUsers = ref(236)
@@ -155,36 +161,42 @@ const messagesToday = ref(1247)
 const tokenUsage = ref('847K')
 const tokenPercentage = ref(99)
 
-// Icon components
-const SlackIcon = () => h('div', { class: 'w-5 h-5 bg-purple-500 rounded' })
-const TeamsIcon = () => h('div', { class: 'w-5 h-5 bg-blue-500 rounded' })
-const WhatsAppIcon = () => h('div', { class: 'w-5 h-5 bg-green-500 rounded' })
-const MessageIcon = () => h('div', { class: 'w-5 h-5 bg-gray-500 rounded' })
-
 const integrations = ref([
   {
     name: 'Slack',
     users: 147,
     connected: true,
-    icon: SlackIcon,
+    icon: 'i-mdi:slack',
+    color: 'text-purple-400',
+    bgColor: 'bg-purple-500/20',
+    path: '/admin/integrations/slack',
   },
   {
     name: 'Teams',
     users: 93,
     connected: true,
-    icon: TeamsIcon,
+    icon: 'i-mdi:microsoft-teams',
+    color: 'text-blue-400',
+    bgColor: 'bg-blue-500/20',
+    path: '/admin/integrations/teams',
   },
   {
     name: 'WhatsApp',
     users: 0,
     connected: false,
-    icon: WhatsAppIcon,
+    icon: 'i-mdi:whatsapp',
+    color: 'text-green-400',
+    bgColor: 'bg-green-500/20',
+    path: '/admin/integrations/whatsapp',
   },
   {
     name: 'iMessage',
     users: 0,
     connected: false,
-    icon: MessageIcon,
+    icon: 'i-heroicons:chat-bubble-left-ellipsis',
+    color: 'text-gray-400',
+    bgColor: 'bg-gray-500/20',
+    path: '/admin/integrations/imessage',
   },
 ])
 
@@ -216,6 +228,10 @@ const recentActivity = ref([
 ])
 
 // Methods
+const navigateToIntegration = (path: string) => {
+  navigateTo(path)
+}
+
 const getActivityColor = (type: string) => {
   const colors: Record<string, string> = {
     success: 'bg-green-400',
